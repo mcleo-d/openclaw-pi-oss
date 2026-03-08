@@ -15,13 +15,13 @@ around platforms with official bot APIs; Signal intentionally has no official bo
 
 ### Potential approaches
 
-**Option A — signal-cli bridge**
+#### Option A — signal-cli bridge
 
 [signal-cli](https://github.com/AsamK/signal-cli) is an unofficial Signal CLI client.
 A REST API wrapper ([bbernhard/signal-cli-rest-api](https://github.com/bbernhard/signal-cli-rest-api))
 can expose it as an HTTP API.
 
-```
+```text
 Signal App → signal-cli-rest-api (Docker) → OpenClaw webhook
 ```
 
@@ -29,12 +29,12 @@ Signal App → signal-cli-rest-api (Docker) → OpenClaw webhook
 - Cons: violates Signal's Terms of Service; requires linking a phone number; unofficial and fragile
 - Effort: high — requires building a custom OpenClaw plugin or webhook integration
 
-**Option B — Custom OpenClaw plugin**
+#### Option B — Custom OpenClaw plugin
 
 OpenClaw has a plugin/extension SDK. A custom plugin could listen to signal-cli events and
 route them to the OpenClaw agent.
 
-**Option C — Wait for official support**
+#### Option C — Wait for official support
 
 Monitor the OpenClaw roadmap. Given Signal's stance on bots, native support is unlikely
 in the near term.
@@ -59,10 +59,12 @@ file paths and syscalls the container process can access beyond Docker's default
 3. Run OpenClaw in complain mode, observe denials, tune the profile
 4. Switch to enforce mode
 5. Reference the profile in `docker-compose.yml`:
+
    ```yaml
    security_opt:
      - apparmor:openclaw-profile
    ```
+
 6. Add the profile to `config/` and document it in `docs/03-security-hardening.md`
 
 ---

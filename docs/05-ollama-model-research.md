@@ -111,10 +111,12 @@ For agentic use (OpenClaw dispatching tools), reliable JSON tool-call emission i
 - Phi4-mini — Microsoft added native function calling (requires Ollama ≥0.5.13)
 
 **Tier 2 — Capable but less reliable at small sizes:**
+
 - gemma3:1b — fast but tool calling requires community variant (`orieg/gemma3-tools:4b`)
 - qwen2.5:0.5b — technically supports tools but unreliable below 1.5B
 
 **Tier 3 — Avoid for agentic use:**
+
 - deepseek-r1:1.5b — poor structured output quality at this size
 - tinyllama:1.1b — unreliable output
 
@@ -231,7 +233,7 @@ OpenClaw runs in Docker; Ollama runs natively on the Pi host. They are connected
 
 ### Architecture
 
-```
+```text
 OpenClaw container
   │  http://host.docker.internal:<your-proxy-port>
   ▼
@@ -266,6 +268,7 @@ No ufw rule for port 11434 is needed — loopback traffic is not reachable from 
 ### Step 2 — Deploy the Ollama proxy
 
 The proxy is required because:
+
 1. OpenClaw sends `num_ctx=16384`+ to Ollama, causing a 1.8 GiB KV cache allocation that freezes inference on Pi 5 hardware
 2. OpenClaw cannot send `think: false` to Ollama itself, so qwen3's thinking mode stays on and generates 200+ overhead tokens per call
 3. OpenClaw sends a ~4,600-token system prompt on every request — the Pi 5 prefills at ~16.5 t/s, making this ~248s of prefill time alone (exceeds OpenClaw's timeout)
@@ -299,6 +302,7 @@ sudo systemctl enable --now ollama-proxy
 ```
 
 Add ufw rules for the proxy port:
+
 ```bash
 BRIDGE=$(docker network inspect openclaw_net --format '{{index .Options "com.docker.network.bridge.name"}}')
 sudo ufw allow in on $BRIDGE to any port <your-proxy-port> proto tcp comment 'Ollama proxy: openclaw_net bridge'
@@ -310,12 +314,14 @@ sudo ufw deny <your-proxy-port> comment 'Block external Ollama proxy access'
 ### Step 3 — Configure OpenClaw
 
 In `docker-compose.yml`, add `host-gateway` mapping so the container can resolve the host:
+
 ```yaml
 extra_hosts:
   - "host.docker.internal:host-gateway"
 ```
 
 In `~/.openclaw/openclaw.json`, point at the proxy:
+
 ```json
 {
   "models": {

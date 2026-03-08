@@ -21,7 +21,7 @@ proxy that adds context window management and two-layer prompt injection detecti
 
 ## Architecture
 
-```
+```text
 Your Phone (Telegram / Signal)
         │
         ▼
