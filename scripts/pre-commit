@@ -44,9 +44,16 @@ fi
 # ---------------------------------------------------------------------------
 # 2. Secrets scan (matches CI: secrets-scan job)
 # ---------------------------------------------------------------------------
+DS_CMD=""
 if command -v detect-secrets &>/dev/null; then
+  DS_CMD="detect-secrets"
+elif python3 -m detect_secrets --version &>/dev/null 2>&1; then
+  DS_CMD="python3 -m detect_secrets"
+fi
+
+if [ -n "$DS_CMD" ]; then
   echo "Running detect-secrets scan..."
-  detect-secrets scan --baseline .secrets.baseline
+  $DS_CMD scan --baseline .secrets.baseline
   DIFF=$(git diff .secrets.baseline | grep -v '"generated_at"' | grep -E '^\+[^+]|^-[^-]' || true)
   if [ -n "$DIFF" ]; then
     echo ""
@@ -62,7 +69,7 @@ if command -v detect-secrets &>/dev/null; then
   fi
 else
   echo "WARN: detect-secrets not found — skipping secrets scan."
-  echo "Install with: pip install detect-secrets==1.5.0"
+  echo "Install with: pip3 install detect-secrets==1.5.0"
 fi
 
 # ---------------------------------------------------------------------------
