@@ -1,0 +1,12 @@
+[DEFAULT]
+bantime  = <your-value>
+findtime = <your-value>
+maxretry = <your-value>
+backend = systemd
+
+[sshd]
+enabled  = true
+port     = ssh
+logpath  = %(sshd_log)s
+maxretry = <your-value>
+bantime  = <your-value>

@@ -1,0 +1,114 @@
+services:
+  openclaw-gateway:
+    image: ${OPENCLAW_IMAGE:-ghcr.io/openclaw/openclaw:latest}
+
+    # === Identity ===
+    user: "node"
+    hostname: openclaw-gateway
+
+    # === Zero-trust capability hardening ===
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    # === Filesystem: read-only rootfs with tmpfs for /tmp ===
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=128m
+
+    # === Resource limits (prevent runaway/DoS) ===
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 2.0
+    pids_limit: 500
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 1024
+
+    # === Environment ===
+    # Only pass variables that are actively used. Claude credentials are commented out
+    # in .env and absent here — add them back if switching from Ollama to Claude.
+    environment:
+      HOME: /home/node
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      # Enforce sandbox mode: all agent tool execution runs in nested containers
+      OPENCLAW_SANDBOX: non-main
+
+    # === Volume mounts ===
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+
+    # === Network: host port bound to Pi localhost only — not LAN-reachable ===
+    ports:
+      - "127.0.0.1:${OPENCLAW_GATEWAY_PORT}:18789"
+      - "127.0.0.1:${OPENCLAW_BRIDGE_PORT}:18790"
+    networks:
+      - openclaw_net
+
+    # === Host access: resolves host.docker.internal to the Pi host IP ===
+    # Required so the container can reach the Ollama proxy at host.docker.internal:<your-proxy-port>
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # === Health check ===
+    # Hits /api/health (real liveness endpoint) — fails if the gateway process is up
+    # but the agent subsystem has crashed, unlike checking the SPA root /.
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:18789/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+    # === Lifecycle ===
+    init: true
+    restart: unless-stopped
+    # Gateway settings (bind, port) are declared in ~/.openclaw/openclaw.json.
+    # CLI args would override the JSON config — avoid duplication by omitting them here.
+    command: ["node", "dist/index.js", "gateway"]
+
+    # Logging: inherits daemon.json defaults (json-file, max-size 10m, max-file 3).
+    # No override needed — only the CLI service differs from the global default.
+
+  # CLI tool — only started manually via --profile cli, never runs as a daemon
+  openclaw-cli:
+    image: ${OPENCLAW_IMAGE:-ghcr.io/openclaw/openclaw:latest}
+    user: "node"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 1.0
+    pids_limit: 200
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      BROWSER: echo
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+    networks:
+      - openclaw_net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stdin_open: true
+    tty: true
+    init: true
+    profiles:
+      - cli
+    entrypoint: ["node", "dist/index.js"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+networks:
+  openclaw_net:
+    external: true

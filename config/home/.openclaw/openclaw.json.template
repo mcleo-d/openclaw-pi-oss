@@ -1,0 +1,56 @@
+{
+  "gateway": {
+    "mode": "local",
+    "port": 18789,
+    "bind": "lan",
+    "controlUi": {
+      "allowedOrigins": ["http://localhost:18789", "http://127.0.0.1:18789"]
+    }
+  },
+  "models": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://host.docker.internal:<your-proxy-port>",
+        "apiKey": "ollama-local",
+        "api": "ollama",
+        "models": [
+          {
+            "id": "<your-primary-model>",
+            "name": "<your-primary-model-display-name>",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 32768,
+            "maxTokens": 2048
+          },
+          {
+            "id": "<your-fallback-model>",
+            "name": "<your-fallback-model-display-name>",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 32768,
+            "maxTokens": 2048
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "ollama/<your-primary-model>",
+        "fallbacks": ["ollama/<your-fallback-model>"]
+      }
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": false,
+      "dmPolicy": "pairing",
+      "botToken": "<your-telegram-bot-token>",
+      "groupPolicy": "allowlist",
+      "streaming": "off"
+    }
+  }
+}

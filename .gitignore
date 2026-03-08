@@ -1,0 +1,20 @@
+# Injection detection signatures and classifier prompt — must never be committed
+config/etc/ollama-proxy/patterns.conf
+config/etc/ollama-proxy/classifier-prompt.txt
+
+# Real secrets and live config — commit only the .template versions
+config/home/openclaw/.env
+config/home/.openclaw/openclaw.json
+
+# macOS
+.DS_Store
+
+# Internal session files — not for public repository
+CLAUDE.md
+.claude/
+GITHUB_CONTRIBUTION_PLAN.md
+
+# Python artefacts
+__pycache__/
+*.pyc
+*.pyo

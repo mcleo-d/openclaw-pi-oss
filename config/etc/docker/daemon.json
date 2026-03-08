@@ -1,0 +1,18 @@
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "icc": false,
+  "live-restore": true,
+  "userland-proxy": false,
+  "no-new-privileges": true,
+  "default-ulimits": {
+    "nofile": {
+      "Name": "nofile",
+      "Hard": 1024,
+      "Soft": 1024
+    }
+  }
+}

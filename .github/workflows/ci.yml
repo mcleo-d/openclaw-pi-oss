@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+
+  secrets-scan:
+    name: Secrets scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install detect-secrets
+        run: pip install -r .github/requirements-ci.txt
+
+      - name: Scan for secrets
+        run: |
+          detect-secrets scan --baseline .secrets.baseline
+          git diff --exit-code .secrets.baseline
+
+  placeholder-check:
+    name: Placeholder check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Check deployable config files for unfilled placeholders
+        run: |
+          # These files are complete as-is and must not contain <your- placeholders.
+          # Template files (.template) and files that legitimately document placeholders
+          # (docs, service files, sshd config) are excluded from this check.
+          files=(
+            "config/etc/docker/daemon.json"
+            "config/etc/sysctl.d/99-hardening.conf"
+            "config/etc/apt/apt.conf.d/50unattended-upgrades"
+            "config/etc/apt/apt.conf.d/20auto-upgrades"
+            "config/etc/systemd/system/ollama.service.d/override.conf"
+            "config/etc/ollama-proxy/proxy.py"
+          )
+          failed=0
+          for f in "${files[@]}"; do
+            if grep -q '<your-' "$f"; then
+              echo "ERROR: unfilled placeholder found in $f"
+              failed=1
+            fi
+          done
+          exit $failed
+
+  markdown-lint:
+    name: Markdown lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Lint markdown files
+        uses: DavidAnson/markdownlint-cli2-action@b4c9feab76d8025d1e83c653fa3990936df0e6c8 # v16
+        with:
+          globs: |
+            **/*.md
+            !node_modules
+
+  proxy-syntax:
+    name: Proxy syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Check proxy.py syntax
+        run: python3 -m py_compile config/etc/ollama-proxy/proxy.py

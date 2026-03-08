@@ -1,0 +1,28 @@
+[Unit]
+Description=Ollama Proxy (num_ctx cap + think=false + injection detection)
+Documentation=https://github.com/mcleo-d/openclaw-pi-oss/blob/main/config/etc/ollama-proxy/proxy.py
+After=ollama.service network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /etc/ollama-proxy/proxy.py
+Restart=always
+RestartSec=5
+User=ollama
+StandardOutput=journal
+StandardError=journal
+
+# Tuning — adjust these values to trade capability for speed.
+# See /etc/ollama-proxy/proxy.py and project docs for guidance.
+Environment="PROXY_OLLAMA_URL=<your-ollama-url>"
+Environment="PROXY_LISTEN_PORT=<your-value>"
+Environment="PROXY_MAX_CTX=<your-value>"
+Environment="PROXY_MAX_SYSTEM_CHARS=<your-value>"
+Environment="PROXY_CLASSIFIER_MODEL=<your-classifier-model>"
+Environment="PROXY_CLASSIFIER_CTX=<your-value>"
+Environment="PROXY_CLASSIFIER_TIMEOUT=<your-value>"
+Environment="PROXY_PATTERNS_FILE=/etc/ollama-proxy/patterns.conf"
+Environment="PROXY_CLASSIFIER_SYSTEM_PROMPT_FILE=/etc/ollama-proxy/classifier-prompt.txt"
+
+[Install]
+WantedBy=multi-user.target
