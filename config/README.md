@@ -111,11 +111,12 @@ Files containing `<your-value>` placeholders must be edited before deploying:
 
 Docker's memory limiting requires cgroup memory to be enabled in the Pi's boot configuration. Edit `/boot/firmware/cmdline.txt` and append the following to the end of the existing single line (do not add a new line):
 
-```
+```text
 cgroup_memory=1 cgroup_enable=memory
 ```
 
 Reboot after making this change. Verify with:
+
 ```bash
 docker inspect <container-id> --format '{{.HostConfig.Memory}}'
 # Should return 2147483648 (2GB) if mem_limit is set in compose

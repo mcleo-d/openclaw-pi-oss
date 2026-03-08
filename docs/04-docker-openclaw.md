@@ -40,6 +40,7 @@ docker pull ghcr.io/openclaw/openclaw:latest
 | Architecture | arm64 (multi-arch manifest) |
 
 To update the image:
+
 ```bash
 ssh <hostname> "docker pull ghcr.io/openclaw/openclaw:latest && cd ~/openclaw && docker compose up -d openclaw-gateway"
 ```
@@ -48,7 +49,7 @@ ssh <hostname> "docker pull ghcr.io/openclaw/openclaw:latest && cd ~/openclaw &&
 
 ## Directory Structure
 
-```
+```text
 ~/openclaw/              # Compose project directory (chmod 750)
 ├── docker-compose.yml   # Hardened compose config (chmod 644)
 └── .env                 # Secrets and config (chmod 600)
@@ -84,10 +85,12 @@ OPENCLAW_GATEWAY_TOKEN=<see file on Pi>
 ```
 
 **Variables deliberately absent:**
+
 - `OPENCLAW_GATEWAY_BIND` — removed. Gateway bind is configured in `openclaw.json` (`gateway.bind: "lan"`), not via .env.
 - `OLLAMA_API_KEY` — removed. The API key is defined directly in `openclaw.json` (`models.providers.ollama.apiKey`), not passed via environment.
 
 **To edit credentials on the Pi:**
+
 ```bash
 ssh <hostname> "nano ~/openclaw/.env"
 ```
@@ -169,7 +172,7 @@ OpenClaw does not connect directly to Ollama. A lightweight Python proxy sits be
 
 The proxy is a systemd service that starts after Ollama:
 
-```
+```text
 OpenClaw container
   │ http://host.docker.internal:<your-proxy-port>
   ▼
@@ -271,6 +274,7 @@ Ollama runs natively on the Pi (not in Docker). The Docker container reaches it 
 4. `controlUi.allowedOrigins` in config — required because `--bind lan` is non-loopback
 
 To verify connectivity end-to-end:
+
 ```bash
 # Test proxy reachable from container network
 ssh <hostname> "docker run --rm --network openclaw_net --add-host=host.docker.internal:host-gateway alpine/curl curl -s http://host.docker.internal:<your-proxy-port>/api/tags | python3 -c \"import sys,json; [print(m['name']) for m in json.load(sys.stdin)['models']]\""
@@ -281,34 +285,41 @@ ssh <hostname> "docker run --rm --network openclaw_net --add-host=host.docker.in
 ## Starting and Managing OpenClaw
 
 ### Prerequisites
+
 Ollama must be running (`systemctl is-active ollama`) and `~/.openclaw/openclaw.json` must be present. Claude API keys are not required when using Ollama only.
 
 ### Start the gateway
+
 ```bash
 ssh <hostname> "cd ~/openclaw && docker compose up -d openclaw-gateway"
 ```
 
 ### Check status
+
 ```bash
 ssh <hostname> "cd ~/openclaw && docker compose ps"
 ```
 
 ### View logs
+
 ```bash
 ssh <hostname> "cd ~/openclaw && docker compose logs -f openclaw-gateway"
 ```
 
 ### Stop the gateway
+
 ```bash
 ssh <hostname> "cd ~/openclaw && docker compose down"
 ```
 
 ### Run the interactive CLI (requires real TTY)
+
 ```bash
 ssh -t <hostname> "cd ~/openclaw && docker compose --profile cli run --rm openclaw-cli"
 ```
 
 ### Restart the gateway
+
 ```bash
 ssh <hostname> "cd ~/openclaw && docker compose restart openclaw-gateway"
 ```
@@ -321,7 +332,7 @@ The gateway is bound to Pi-localhost only. Access requires an SSH tunnel from yo
 
 Add these two entries (already configured — shown here for reference):
 
-```
+```text
 # Regular SSH access
 Host <hostname>
   HostName <hostname>.local
@@ -350,11 +361,13 @@ Host <hostname>-ui
 #### Every session
 
 **Step 1 — Open the tunnel** (dedicated terminal tab, leave it open):
+
 ```bash
 ssh -N <hostname>-ui
 ```
 
 **Step 2 — Get the pre-authenticated URL:**
+
 ```bash
 ssh <hostname> "cd ~/openclaw && docker compose exec openclaw-gateway node dist/index.js dashboard --no-open"
 ```
@@ -369,6 +382,7 @@ ssh <hostname> "cd ~/openclaw && docker compose exec openclaw-gateway node dist/
 # Approve the pending request (copy the requestId UUID from the Request column)
 ssh <hostname> "cd ~/openclaw && docker compose exec openclaw-gateway node dist/index.js devices approve <requestId>"
 ```
+
 Once approved, the device is remembered — pairing is only required once per browser.
 
 ---
@@ -390,7 +404,9 @@ ssh <hostname> "docker inspect \$(docker compose -f ~/openclaw/docker-compose.ym
 ## Troubleshooting
 
 ### Container exits immediately or restarts in a loop
+
 Check logs for startup errors:
+
 ```bash
 ssh <hostname> "cd ~/openclaw && docker compose logs openclaw-gateway"
 ```
@@ -416,18 +432,23 @@ Common causes and fixes:
 | `pairing required` | New browser/device has not been approved | Run `devices list` then `devices approve <requestId>` on the Pi (see above) |
 
 ### Cannot connect to gateway
+
 Verify it's bound to localhost and the port is open:
+
 ```bash
 ssh <hostname> "sudo ss -tlnp | grep 18789"
 ```
 
 ### Image is outdated
+
 Pull the latest image and recreate the container:
+
 ```bash
 ssh <hostname> "docker pull ghcr.io/openclaw/openclaw:latest && cd ~/openclaw && docker compose up -d openclaw-gateway"
 ```
 
 ### Out of disk space from Docker
+
 ```bash
 # Remove unused images, stopped containers, dangling volumes
 ssh <hostname> "docker system prune -f"

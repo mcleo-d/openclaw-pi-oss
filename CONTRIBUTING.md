@@ -117,7 +117,7 @@ Before opening a PR, confirm:
 No strict convention is enforced. Please write a clear, present-tense subject line that
 describes what the commit does, for example:
 
-```
+```text
 Add AppArmor profile for OpenClaw container
 Fix proxy num_ctx cap not applying to streaming requests
 Clarify fail2ban threshold placeholder in deployment guide

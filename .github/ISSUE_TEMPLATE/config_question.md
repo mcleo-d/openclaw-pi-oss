@@ -16,7 +16,7 @@ labels: question
 
 <!-- Paste any relevant config below. Remove all real values (hostnames, tokens, IPs) before posting. -->
 
-```
+```text
 ```
 
 ## Environment

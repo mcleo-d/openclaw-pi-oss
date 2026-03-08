@@ -32,12 +32,14 @@ ping <hostname>.local
 The Mac's SSH public key (`~/.ssh/id_ed25519.pub`) is installed in `/home/<username>/.ssh/authorized_keys` on the Pi. Password authentication is disabled.
 
 If SSH keys ever need to be re-established:
+
 ```bash
 # From the Mac (requires password auth to be temporarily re-enabled on Pi)
 ssh-copy-id -i ~/.ssh/id_ed25519.pub <username>@<hostname>.local
 ```
 
 Or manually paste the public key into `~/.ssh/authorized_keys` on the Pi:
+
 ```bash
 # On the Pi:
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
@@ -54,6 +56,7 @@ chmod 600 ~/.ssh/authorized_keys
 | Swap | 511MB | 0 | 511MB |
 
 The Pi 5 (8GB) comfortably meets all requirements:
+
 - OpenClaw Docker container: ~2GB RAM allocated limit
 - Ollama + 3B parameter model: ~2-3GB RAM
 - OS overhead: ~300MB

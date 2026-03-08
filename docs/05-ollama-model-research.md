@@ -43,6 +43,7 @@ The Pi 5's Cortex-A76 hits a cache-miss cliff above roughly 4096 context. At 163
 ### Production fix (2026-02-27) — ollama-proxy + new engine
 
 **Solution:** An `ollama-proxy` service on port <your-proxy-port> intercepts requests and:
+
 - Caps `num_ctx` at 4096 → KV cache drops to 448 MiB
 - Injects `think: false` → disables qwen3 thinking mode entirely
 - Truncates system messages to 500 chars (~125 tokens) → prefill drops from ~248s to ~10s
@@ -55,6 +56,7 @@ With the new engine enabled (default in Ollama v0.17.0+):
 | `qwen2.5:3b-instruct-q4_K_M` | 4096 (capped) | 144 MiB | Not re-tested (fallback only) | ⬇️ Fallback |
 
 **Why qwen3:1.7b won in production:**
+
 - Faster per token (6.89 vs 5.18 t/s)
 - With thinking disabled, token count per call is minimal (comparable to qwen2.5:3b's 20 tokens)
 - The initial thinking-mode penalty no longer applies once the proxy injects `think: false`
@@ -105,6 +107,7 @@ Q4_K_M uses mixed-precision K-quant with higher precision on attention layers. T
 For agentic use (OpenClaw dispatching tools), reliable JSON tool-call emission is critical. Tier ranking:
 
 **Tier 1 — Excellent (confirmed native Ollama tools API support):**
+
 - Qwen2.5 family (all instruct variants) — specifically trained on function-calling data; community consensus best small-model tool caller
 - Qwen3 family — tool-use is a primary training objective; works across all sizes including 0.6B
 - Llama 3.1 / 3.2 instruct — Meta's official tool calling introduced in 3.1
