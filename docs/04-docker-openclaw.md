@@ -371,10 +371,12 @@ ssh -N <hostname>-ui
 ```bash
 ssh <hostname> "cd ~/openclaw && docker compose exec openclaw-gateway node dist/index.js dashboard --no-open"
 ```
+
 Outputs `http://127.0.0.1:18789/#token=<token>` — replace `127.0.0.1` with `localhost` and open it.
 
 **First-time connection — device pairing:**
 OpenClaw requires explicit approval for each new browser/device. After connecting with the token URL, the UI will show a "pairing required" screen. Approve from the Pi:
+
 ```bash
 # List pending requests
 ssh <hostname> "cd ~/openclaw && docker compose exec openclaw-gateway node dist/index.js devices list"
