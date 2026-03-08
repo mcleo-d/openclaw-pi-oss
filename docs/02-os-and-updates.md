@@ -38,7 +38,7 @@ A reboot was performed to load the new kernel. Post-reboot kernel confirmed as `
 
 Checked with `sudo rpi-eeprom-update`. Status at time of check:
 
-```
+```text
 BOOTLOADER: up to date
    CURRENT: Mon  8 Dec 19:29:54 UTC 2025 (1765222194)
     LATEST: Mon  8 Dec 19:29:54 UTC 2025 (1765222194)
@@ -50,16 +50,19 @@ No EEPROM update was required.
 ## Ongoing Updates
 
 Automatic security updates are configured via `unattended-upgrades`:
+
 - Security channel: `${distro_id}:${distro_codename}-security`
 - Raspberry Pi channel: `Raspberry Pi Foundation:${distro_codename}`
 - Automatic reboot: **disabled** (manual reboot required after kernel updates)
 - Cleanup: unused dependencies removed automatically
 
 Config files:
+
 - `/etc/apt/apt.conf.d/50unattended-upgrades`
 - `/etc/apt/apt.conf.d/20auto-upgrades`
 
 ### Manual update process
+
 ```bash
 # Check for updates
 ssh <hostname> "sudo apt update"
@@ -77,6 +80,7 @@ ssh <hostname> "uname -r"
 ```
 
 ### Check EEPROM
+
 ```bash
 ssh <hostname> "sudo rpi-eeprom-update"
 ```

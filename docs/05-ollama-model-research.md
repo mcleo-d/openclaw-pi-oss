@@ -43,6 +43,7 @@ The Pi 5's Cortex-A76 hits a cache-miss cliff above roughly 4096 context. At 163
 ### Production fix (2026-02-27) — ollama-proxy + new engine
 
 **Solution:** An `ollama-proxy` service on port <your-proxy-port> intercepts requests and:
+
 - Caps `num_ctx` at 4096 → KV cache drops to 448 MiB
 - Injects `think: false` → disables qwen3 thinking mode entirely
 - Truncates system messages to 500 chars (~125 tokens) → prefill drops from ~248s to ~10s
@@ -55,6 +56,7 @@ With the new engine enabled (default in Ollama v0.17.0+):
 | `qwen2.5:3b-instruct-q4_K_M` | 4096 (capped) | 144 MiB | Not re-tested (fallback only) | ⬇️ Fallback |
 
 **Why qwen3:1.7b won in production:**
+
 - Faster per token (6.89 vs 5.18 t/s)
 - With thinking disabled, token count per call is minimal (comparable to qwen2.5:3b's 20 tokens)
 - The initial thinking-mode penalty no longer applies once the proxy injects `think: false`
@@ -105,16 +107,19 @@ Q4_K_M uses mixed-precision K-quant with higher precision on attention layers. T
 For agentic use (OpenClaw dispatching tools), reliable JSON tool-call emission is critical. Tier ranking:
 
 **Tier 1 — Excellent (confirmed native Ollama tools API support):**
+
 - Qwen2.5 family (all instruct variants) — specifically trained on function-calling data; community consensus best small-model tool caller
 - Qwen3 family — tool-use is a primary training objective; works across all sizes including 0.6B
 - Llama 3.1 / 3.2 instruct — Meta's official tool calling introduced in 3.1
 - Phi4-mini — Microsoft added native function calling (requires Ollama ≥0.5.13)
 
 **Tier 2 — Capable but less reliable at small sizes:**
+
 - gemma3:1b — fast but tool calling requires community variant (`orieg/gemma3-tools:4b`)
 - qwen2.5:0.5b — technically supports tools but unreliable below 1.5B
 
 **Tier 3 — Avoid for agentic use:**
+
 - deepseek-r1:1.5b — poor structured output quality at this size
 - tinyllama:1.1b — unreliable output
 
@@ -231,7 +236,7 @@ OpenClaw runs in Docker; Ollama runs natively on the Pi host. They are connected
 
 ### Architecture
 
-```
+```text
 OpenClaw container
   │  http://host.docker.internal:<your-proxy-port>
   ▼
@@ -266,6 +271,7 @@ No ufw rule for port 11434 is needed — loopback traffic is not reachable from 
 ### Step 2 — Deploy the Ollama proxy
 
 The proxy is required because:
+
 1. OpenClaw sends `num_ctx=16384`+ to Ollama, causing a 1.8 GiB KV cache allocation that freezes inference on Pi 5 hardware
 2. OpenClaw cannot send `think: false` to Ollama itself, so qwen3's thinking mode stays on and generates 200+ overhead tokens per call
 3. OpenClaw sends a ~4,600-token system prompt on every request — the Pi 5 prefills at ~16.5 t/s, making this ~248s of prefill time alone (exceeds OpenClaw's timeout)
@@ -299,6 +305,7 @@ sudo systemctl enable --now ollama-proxy
 ```
 
 Add ufw rules for the proxy port:
+
 ```bash
 BRIDGE=$(docker network inspect openclaw_net --format '{{index .Options "com.docker.network.bridge.name"}}')
 sudo ufw allow in on $BRIDGE to any port <your-proxy-port> proto tcp comment 'Ollama proxy: openclaw_net bridge'
@@ -310,12 +317,14 @@ sudo ufw deny <your-proxy-port> comment 'Block external Ollama proxy access'
 ### Step 3 — Configure OpenClaw
 
 In `docker-compose.yml`, add `host-gateway` mapping so the container can resolve the host:
+
 ```yaml
 extra_hosts:
   - "host.docker.internal:host-gateway"
 ```
 
 In `~/.openclaw/openclaw.json`, point at the proxy:
+
 ```json
 {
   "models": {

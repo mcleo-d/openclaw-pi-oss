@@ -23,7 +23,7 @@ jobs:
       - name: Scan for secrets
         run: |
           detect-secrets scan --baseline .secrets.baseline
-          git diff --exit-code .secrets.baseline
+          git diff .secrets.baseline | grep -v '"generated_at"' | grep -E '^\+[^+]|^-[^-]' | grep -q '.' && { echo "ERROR: secrets baseline has unexpected changes"; git diff .secrets.baseline; exit 1; } || true
 
   placeholder-check:
     name: Placeholder check

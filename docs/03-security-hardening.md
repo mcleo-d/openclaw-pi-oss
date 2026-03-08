@@ -18,7 +18,7 @@ The hardening below addresses all five threat vectors in a layered, zero-trust m
 
 **File:** `/etc/ssh/sshd_config.d/99-hardening.conf`
 
-```
+```text
 PermitRootLogin no
 PasswordAuthentication no
 PermitEmptyPasswords no
@@ -36,6 +36,7 @@ LoginGraceTime <your-value>
 **Effect:** Only SSH key authentication is accepted. Root login is blocked. X11 forwarding and agent forwarding are disabled. `AllowTcpForwarding local` permits local port forwarding (needed for the web UI SSH tunnel) while blocking remote forwarding and SOCKS proxying. Sessions time out after the configured inactivity interval.
 
 To verify:
+
 ```bash
 ssh <hostname> "sudo sshd -T | grep -E '(passwordauth|permitroot|x11forward|maxauthtries)'"
 ```
@@ -71,6 +72,7 @@ sudo ufw enable
 **Important:** OpenClaw's port 18789 is bound to `127.0.0.1` (localhost) only. Do NOT add a ufw rule to expose port 18789 externally unless a TLS-terminating reverse proxy (nginx/Caddy) is deployed in front of it.
 
 To verify:
+
 ```bash
 ssh <hostname> "sudo ufw status verbose"
 ```
@@ -99,11 +101,13 @@ bantime  = <your-value>
 **Policy:** Failed SSH authentication attempts are counted per source IP within a detection window. Exceeding the configured threshold triggers a temporary ban.
 
 To check banned IPs:
+
 ```bash
 ssh <hostname> "sudo fail2ban-client status sshd"
 ```
 
 To unban an IP:
+
 ```bash
 ssh <hostname> "sudo fail2ban-client set sshd unbanip <IP>"
 ```
@@ -169,6 +173,7 @@ fs.suid_dumpable = 0
 **Note:** Verify that all kernel hardening parameters have taken effect after applying this file. Some LSM-dependent parameters may not be available on all kernel configurations — check `sysctl -a` output and document any gaps in your own deployment notes.
 
 To apply without reboot:
+
 ```bash
 ssh <hostname> "sudo sysctl -p /etc/sysctl.d/99-hardening.conf"
 ```
@@ -192,6 +197,7 @@ sudo systemctl disable --now serial-getty@ttyAMA10.service
 **Note:** `wpa_supplicant` was left enabled in case WiFi is ever needed.
 
 To verify current running services:
+
 ```bash
 ssh <hostname> "sudo systemctl list-units --type=service --state=running --no-pager"
 ```
@@ -224,6 +230,7 @@ ssh <hostname> "sudo systemctl list-units --type=service --state=running --no-pa
 ```
 
 **Key controls:**
+
 - `icc: false` — containers on the same host cannot communicate by default (inter-container communication disabled)
 - `no-new-privileges: true` — enforced globally for all containers; processes cannot gain new privileges via setuid/setgid
 - `live-restore: true` — containers keep running if the Docker daemon restarts (resilience)
@@ -231,6 +238,7 @@ ssh <hostname> "sudo systemctl list-units --type=service --state=running --no-pa
 - Log limits — prevent disk exhaustion from container log growth
 
 To verify Docker security options:
+
 ```bash
 ssh <hostname> "docker info --format '{{.SecurityOptions}}'"
 # Expected: [name=seccomp,profile=builtin name=cgroupns name=no-new-privileges]
@@ -335,11 +343,13 @@ ssh <hostname> "sudo journalctl -u ollama-proxy -n 10 --no-pager | grep -E 'BLOC
 ## CVE Reference
 
 **CVE-2026-25253** (CVSS 8.8 — Critical RCE)
+
 - Affected: OpenClaw versions before 2026-01-29
 - Fixed: OpenClaw v2026.2.26 (2026-02-28)
 - Action: Keep the OpenClaw image up to date — see update command below
 
 Always keep the OpenClaw image up to date:
+
 ```bash
 ssh <hostname> "docker pull ghcr.io/openclaw/openclaw:latest"
 ```

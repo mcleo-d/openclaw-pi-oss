@@ -33,11 +33,13 @@ labels: bug
 <!-- Paste relevant logs below. Remove any sensitive values before posting. -->
 
 **Proxy logs:**
-```
+
+```text
 sudo journalctl -u ollama-proxy -n 50 --no-pager
 ```
 
 **OpenClaw logs:**
-```
+
+```text
 docker compose -f ~/openclaw/docker-compose.yml logs --tail=50 openclaw-gateway
 ```
