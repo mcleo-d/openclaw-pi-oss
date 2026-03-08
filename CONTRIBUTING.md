@@ -99,6 +99,50 @@ Then commit the updated `.secrets.baseline` alongside your changes.
 
 ---
 
+## Markdown linting
+
+All `.md` files are linted by `markdownlint-cli2` in CI. Run the same check locally before
+pushing:
+
+```bash
+npx markdownlint-cli2 "**/*.md" "#node_modules"
+```
+
+Or install once globally and omit `npx`:
+
+```bash
+npm install -g markdownlint-cli2
+markdownlint-cli2 "**/*.md" "!node_modules"
+```
+
+Rules are configured in `.markdownlint.json`. The most common violations are missing blank
+lines around fenced code blocks (MD031/MD032), fences without a language tag (MD040), and
+missing blank lines around headings (MD022). See `docs/ci-test-guide.md` for annotated
+examples of every enforced rule.
+
+---
+
+## Local pre-commit hook
+
+Install this hook once to catch linting and secrets failures before every commit:
+
+```bash
+cp scripts/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+The hook runs `markdownlint-cli2` against all staged `.md` files and the
+`detect-secrets` baseline check. Any failure blocks the commit with a diagnostic
+message. Fix the reported issues and `git add` the corrected files before retrying.
+
+To bypass the hook for a deliberate reason (not recommended for normal use):
+
+```bash
+git commit --no-verify
+```
+
+---
+
 ## Pull request checklist
 
 Before opening a PR, confirm:
@@ -108,7 +152,8 @@ Before opening a PR, confirm:
 - [ ] All new `proxy.py` tunables use the `PROXY_` prefix and `os.environ.get()`
 - [ ] `config/README.md` file map updated if config files were added or removed
 - [ ] New sensitive files added to `.gitignore` with a `.template` equivalent provided
-- [ ] `detect-secrets` baseline passes locally
+- [ ] `detect-secrets` baseline passes locally (`detect-secrets scan --baseline .secrets.baseline`)
+- [ ] Markdown linting passes locally (`markdownlint-cli2 "**/*.md" "!node_modules"`)
 
 ---
 

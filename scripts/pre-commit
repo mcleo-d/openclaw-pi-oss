@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# pre-commit hook — mirrors the CI checks that run on every PR.
+# Lints only staged .md files so untracked files are not flagged.
+# Install once: cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+ERRORS=0
+
+# ---------------------------------------------------------------------------
+# 1. Markdown linting — staged .md files only (matches CI: markdown-lint job)
+# ---------------------------------------------------------------------------
+STAGED_MD=$(git diff --cached --name-only --diff-filter=ACM | grep '\.md$' || true)
+
+if [ -n "$STAGED_MD" ]; then
+  if command -v markdownlint-cli2 &>/dev/null; then
+    echo "Running markdownlint-cli2 on staged .md files..."
+    # shellcheck disable=SC2086
+    if ! markdownlint-cli2 $STAGED_MD 2>&1; then
+      echo ""
+      echo "ERROR: markdownlint-cli2 found violations (see above)."
+      echo "Fix the reported lines, then 'git add' the corrected files and retry."
+      ERRORS=1
+    fi
+  elif command -v npx &>/dev/null; then
+    echo "Running markdownlint-cli2 via npx on staged .md files..."
+    # shellcheck disable=SC2086
+    if ! npx --yes markdownlint-cli2 $STAGED_MD 2>&1; then
+      echo ""
+      echo "ERROR: markdownlint-cli2 found violations (see above)."
+      echo "Fix the reported lines, then 'git add' the corrected files and retry."
+      ERRORS=1
+    fi
+  else
+    echo "WARN: markdownlint-cli2 not found and npx not available — skipping markdown lint."
+    echo "Install with: npm install -g markdownlint-cli2"
+  fi
+else
+  echo "No staged .md files — skipping markdown lint."
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Secrets scan (matches CI: secrets-scan job)
+# ---------------------------------------------------------------------------
+if command -v detect-secrets &>/dev/null; then
+  echo "Running detect-secrets scan..."
+  detect-secrets scan --baseline .secrets.baseline
+  DIFF=$(git diff .secrets.baseline | grep -v '"generated_at"' | grep -E '^\+[^+]|^-[^-]' || true)
+  if [ -n "$DIFF" ]; then
+    echo ""
+    echo "ERROR: .secrets.baseline has unexpected changes after re-scan:"
+    git diff .secrets.baseline
+    echo ""
+    echo "If this is a false positive, run: detect-secrets audit .secrets.baseline"
+    echo "Then commit the updated .secrets.baseline alongside your changes."
+    ERRORS=1
+  else
+    # Restore generated_at-only change so the working tree stays clean
+    git checkout -- .secrets.baseline 2>/dev/null || true
+  fi
+else
+  echo "WARN: detect-secrets not found — skipping secrets scan."
+  echo "Install with: pip install detect-secrets==1.5.0"
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Placeholder check (matches CI: placeholder-check job)
+# ---------------------------------------------------------------------------
+echo "Running placeholder check..."
+files=(
+  "config/etc/docker/daemon.json"
+  "config/etc/sysctl.d/99-hardening.conf"
+  "config/etc/apt/apt.conf.d/50unattended-upgrades"
+  "config/etc/apt/apt.conf.d/20auto-upgrades"
+  "config/etc/systemd/system/ollama.service.d/override.conf"
+  "config/etc/ollama-proxy/proxy.py"
+)
+for f in "${files[@]}"; do
+  if [ -f "$f" ] && grep -q '<your-' "$f"; then
+    echo "ERROR: unfilled placeholder found in $f"
+    ERRORS=1
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# 4. Python syntax check (matches CI: proxy-syntax job)
+# ---------------------------------------------------------------------------
+PROXY="config/etc/ollama-proxy/proxy.py"
+if [ -f "$PROXY" ]; then
+  echo "Running proxy.py syntax check..."
+  if ! python3 -m py_compile "$PROXY"; then
+    echo "ERROR: proxy.py has a syntax error (see above)."
+    ERRORS=1
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+echo ""
+if [ "$ERRORS" -eq 0 ]; then
+  echo "All pre-commit checks passed."
+else
+  echo "Pre-commit checks failed — commit blocked. Fix errors above and retry."
+  echo "To bypass (not recommended): git commit --no-verify"
+  exit 1
+fi

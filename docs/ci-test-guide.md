@@ -110,7 +110,7 @@ changed, filter list changed).
 
 ### What a pass looks like
 
-```
+```text
 PASS: no unexpected baseline changes
 ```
 
@@ -118,7 +118,7 @@ The scan produces no output on success. The diff command produces no output and 
 
 ### What a fail looks like
 
-```
+```text
 FAIL: unexpected baseline changes
 ```
 
@@ -238,7 +238,7 @@ No output. Exit code 0.
 
 ### What a fail looks like
 
-```
+```text
 ERROR: unfilled placeholder found in config/etc/docker/daemon.json
 ```
 
@@ -342,19 +342,20 @@ the next section). The active rules include, but are not limited to:
 
 A blank line is required before the opening fence and after the closing fence.
 
-Wrong:
+Wrong — the fence immediately follows the paragraph with no blank line, and the closing fence
+is immediately followed by more text:
 
-```text
+````text
 Some text.
 ```bash
 echo hello
 ```
 More text.
-```
+````
 
-Correct:
+Correct — blank line before the opening fence, blank line after the closing fence:
 
-```text
+````text
 Some text.
 
 ```bash
@@ -362,7 +363,7 @@ echo hello
 ```
 
 More text.
-```
+````
 
 Note: the blank line after the closing fence is also required. A closing fence immediately
 followed by text is a common mistake because the rendered output looks fine in many editors
@@ -372,25 +373,25 @@ but fails the linter.
 
 A blank line is required before the first list item and after the last list item.
 
-Wrong:
+Wrong — the list starts directly after a paragraph with no blank line:
 
-```text
+````text
 See the following:
 - Item one
 - Item two
 Continue reading.
-```
+````
 
-Correct:
+Correct — blank line before the first item, blank line after the last item:
 
-```text
+````text
 See the following:
 
 - Item one
 - Item two
 
 Continue reading.
-```
+````
 
 This applies to both unordered (`-`, `*`, `+`) and ordered (`1.`, `2.`) lists.
 
@@ -422,23 +423,23 @@ Common language identifiers used in this project: `bash`, `json`, `python`, `yam
 
 A blank line is required before and after every heading.
 
-Wrong:
+Wrong — the heading runs directly into the surrounding paragraphs:
 
-```text
+````text
 Some paragraph.
 ## Section heading
 Content here.
-```
+````
 
-Correct:
+Correct — blank line both before and after the heading:
 
-```text
+````text
 Some paragraph.
 
 ## Section heading
 
 Content here.
-```
+````
 
 The blank line before the first heading in a document is not required if the heading is the
 very first line, but a blank line after it is always required before the first content.
@@ -457,7 +458,7 @@ No output. Exit code 0.
 
 ### What a fail looks like
 
-```
+```text
 docs/01-hardware.md:42:1 MD031/blanks-around-fences Fenced code blocks should be surrounded by blank lines [Context: "```"]
 docs/03-security-hardening.md:88 MD040/fenced-code-language Fenced code blocks should have a language specified [Context: "```"]
 ```
@@ -531,7 +532,7 @@ python3 -m py_compile config/etc/ollama-proxy/proxy.py && echo "PASS" || echo "F
 
 ### What a pass looks like
 
-```
+```text
 PASS
 ```
 
@@ -539,7 +540,7 @@ No output from `py_compile` itself. Exit code 0.
 
 ### What a fail looks like
 
-```
+```text
   File "config/etc/ollama-proxy/proxy.py", line 87
     def broken_function(
                        ^

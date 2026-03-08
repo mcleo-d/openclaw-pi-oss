@@ -414,6 +414,7 @@ ssh <hostname> "cd ~/openclaw && docker compose logs openclaw-gateway"
 ```
 
 Common causes and fixes:
+
 | Error | Fix |
 |---|---|
 | `gateway.mode=local ... unset` | Add `"gateway": {"mode": "local"}` to `openclaw.json` |
