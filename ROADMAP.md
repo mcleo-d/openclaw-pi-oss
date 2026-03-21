@@ -87,3 +87,27 @@ inbound traffic except SSH. This is the correct default.
 
 This item should not be pursued until the core stack (proxy, injection detection, container
 hardening) is stable and well-documented.
+
+---
+
+## System Prompt Compression
+
+**Goal:** Replace blunt character-count truncation of the system prompt with intelligent
+extraction that preserves agent capability while keeping prefill latency acceptable.
+
+**Constraint:** At ~16 t/s prefill rate on a Pi 5 Cortex-A76:
+
+- 500 chars → ~8s first-turn latency (current truncation limit — acceptable)
+- 2000 chars → ~30s first-turn latency (approaches UX limit for Telegram responses)
+
+**Approach:** The OpenClaw system prompt is dominated by JSON tool-schema blocks. A
+heuristic extractor that strips JSON-formatted tool definitions and retains
+natural-language instruction paragraphs could recover significant agent capability at
+the same latency cost. The natural-language instructions that shape agent behaviour are
+a small fraction of the total prompt length.
+
+**Caution:** Requires `security-engineer` review before deployment — a compression
+function that accidentally strips safety instructions or tool-use constraints would be
+a regression. Compression must be deterministic and auditable.
+
+**Owner:** `ai-ml-engineer` (design + evaluation) + `python-developer` (implementation)

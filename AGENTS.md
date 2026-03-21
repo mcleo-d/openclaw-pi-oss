@@ -11,7 +11,9 @@ or any other tool) contributing to `openclaw-pi-oss`.
 
 - Sanitised configuration templates for deploying OpenClaw on a Raspberry Pi 5
 - Documentation covering architecture, security rationale, and deployment steps
-- A custom Ollama proxy (`config/etc/ollama-proxy/proxy.py`) with all values externalised
+- Two proxy variants — choose based on your security requirements:
+  - `config/etc/ollama-proxy/proxy.py` — **enhanced**: think:false injection, num_ctx cap, system prompt truncation, Gate 1 (pattern matching) + Gate 2 (LLM classifier) injection detection. Requires `patterns.conf` and `classifier-prompt.txt` (operator-supplied, never in repo).
+  - `config/etc/openclaw-proxy/proxy.py` — **minimal**: think:false injection and num_ctx cap only. No external files required. All config via `PROXY_*` env vars.
 
 There is no local development mode. The stack requires a Raspberry Pi running Ollama natively.
 Do not attempt to generate a local dev environment, Docker Compose override, or test harness —
@@ -34,12 +36,22 @@ none of these are in scope for this project.
 
 ### proxy.py contract
 
-- All tunable constants must use `os.environ.get("PROXY_*", "<default>")` — never hardcode
-- `PROXY_LISTEN_PORT` intentionally has no default; the proxy exits if it is unset
+Both proxy variants share the same configuration contract:
+
+- All tunables must use `os.environ.get("PROXY_*", "<default>")` — never hardcode values
+- Use the `PROXY_` prefix for any new tunable
+- If adding a new tunable, add an `Environment=` line to the relevant service file and document it in `docs/04-docker-openclaw.md`
+
+**Enhanced variant (`ollama-proxy`) only:**
+
+- `PROXY_LISTEN_PORT` intentionally has no default — the proxy exits at startup if unset
 - Injection patterns must never be added to `proxy.py` — they belong in `patterns.conf` only
-- If adding a new tunable, use the `PROXY_` prefix, add an `Environment=` placeholder to
-  `config/etc/systemd/system/ollama-proxy.service`, and document it in
-  `docs/04-docker-openclaw.md`
+- If adding injection detection logic, the pattern file path is already externalised via `PROXY_PATTERNS_FILE`
+
+**Minimal variant (`openclaw-proxy`) only:**
+
+- All `PROXY_*` env vars have sensible defaults — no env var is required
+- There are no external files; the proxy is fully self-contained
 
 ### Template convention
 
@@ -138,6 +150,23 @@ project that has none of those concerns.
 | `platform-engineer` | Backstage, ArgoCD, Kong, Linkerd — no platform infrastructure in scope |
 | `sre-engineer` | Prometheus, Grafana, SLOs, error budgets — no cloud observability in scope |
 | `ui-designer` | Design tokens, Tailwind, component specs — no UI in scope |
+
+---
+
+## Claude Code agent architecture
+
+This project validated the two-tier Claude Code agent architecture: global agents in
+`~/.claude/agents/` (reusable patterns, parameterised) + project-level overrides in
+`.claude/agents/` (deployment-specific values — SSH host, ports, model name, file paths).
+
+The pattern is documented in `~/.claude/CLAUDE.md` on any Mac with Claude Code installed.
+If you are contributing with Claude Code and want consistent agent context across sessions,
+create a `.claude/agents/` directory in your local clone with overrides for your deployment
+values. The global agent files provide the reusable procedures; your overrides provide the
+values that make them concrete for your Pi.
+
+**Note:** `.claude/` is in `.gitignore` — your deployment-specific overrides will never be
+committed to this repo.
 
 ---
 

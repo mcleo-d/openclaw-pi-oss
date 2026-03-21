@@ -1,0 +1,22 @@
+[Unit]
+Description=OpenClaw minimal Ollama proxy (think:false injection, num_ctx cap)
+After=ollama.service
+Requires=ollama.service
+
+[Service]
+Type=simple
+User=nobody
+ExecStart=/usr/bin/python3 /etc/openclaw-proxy/proxy.py
+Restart=on-failure
+RestartSec=5
+Environment="PROXY_BIND_HOST=0.0.0.0"
+Environment="PROXY_BIND_PORT=11435"
+Environment="PROXY_OLLAMA_HOST=127.0.0.1"
+Environment="PROXY_OLLAMA_PORT=11434"
+Environment="PROXY_MAX_CTX=8192"
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openclaw-proxy
+
+[Install]
+WantedBy=multi-user.target

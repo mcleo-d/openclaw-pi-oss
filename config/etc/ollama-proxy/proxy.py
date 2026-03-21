@@ -1,17 +1,3 @@
-# Copyright 2026 James McLeod
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 #!/usr/bin/env python3
 """
 ollama-proxy: lightweight HTTP proxy between OpenClaw and Ollama.
@@ -37,6 +23,8 @@ Configuration via environment variables (set in ollama-proxy.service):
   PROXY_CLASSIFIER_SYSTEM_PROMPT_FILE — path to classifier system prompt (default: /etc/ollama-proxy/classifier-prompt.txt)
   PROXY_OLLAMA_URL       — upstream Ollama URL (default: http://127.0.0.1:11434)
   PROXY_LISTEN_PORT      — port the proxy listens on (required — no default)
+  PROXY_MAX_BODY_SIZE    — maximum request body size in bytes (default: 1048576 = 1 MiB)
+  PROXY_FORWARD_TIMEOUT  — forward timeout to Ollama in seconds (default: 300)
 
 Injection patterns are loaded from PROXY_PATTERNS_FILE at startup.
 The classifier system prompt is loaded from PROXY_CLASSIFIER_SYSTEM_PROMPT_FILE at startup.
@@ -66,6 +54,9 @@ CLASSIFIER_CTX     = int(os.environ.get("PROXY_CLASSIFIER_CTX",     "512"))
 CLASSIFIER_TIMEOUT = int(os.environ.get("PROXY_CLASSIFIER_TIMEOUT", "20"))
 PATTERNS_FILE      = os.environ.get("PROXY_PATTERNS_FILE",      "/etc/ollama-proxy/patterns.conf")
 CLASSIFIER_PROMPT_FILE = os.environ.get("PROXY_CLASSIFIER_SYSTEM_PROMPT_FILE", "/etc/ollama-proxy/classifier-prompt.txt")
+
+MAX_BODY_SIZE     = int(os.environ.get("PROXY_MAX_BODY_SIZE",   str(1 * 1024 * 1024)))  # 1 MiB
+FORWARD_TIMEOUT   = int(os.environ.get("PROXY_FORWARD_TIMEOUT", "300"))
 
 
 def _load_patterns(path):
@@ -139,7 +130,7 @@ class OllamaProxyHandler(http.server.BaseHTTPRequestHandler):
             method=method,
         )
         try:
-            with urllib.request.urlopen(req, timeout=300) as resp:
+            with urllib.request.urlopen(req, timeout=FORWARD_TIMEOUT) as resp:
                 self.send_response(resp.status)
                 for key, val in resp.headers.items():
                     if key.lower() not in ("transfer-encoding",):
@@ -155,10 +146,10 @@ class OllamaProxyHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(e.code)
             self.end_headers()
             self.wfile.write(e.read())
-        except Exception as e:
+        except Exception:
             self.send_response(502)
             self.end_headers()
-            self.wfile.write(str(e).encode())
+            self.wfile.write(b"upstream error")
 
     def do_GET(self):
         self._forward("GET")
@@ -220,14 +211,20 @@ class OllamaProxyHandler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         content_length = int(self.headers.get("Content-Length", 0))
+
+        # Body size guard — prevents memory exhaustion from large POST bodies
+        if content_length > MAX_BODY_SIZE:
+            self._block("request too large")
+            return
+
         body = self.rfile.read(content_length) if content_length else b""
 
-        # Always attempt JSON parsing regardless of Content-Type header.
-        # Ollama accepts JSON regardless; some clients omit the header.
         if body:
             try:
                 data = json.loads(body)
-
+            except json.JSONDecodeError:
+                pass  # pass non-JSON through unchanged
+            else:
                 # Cap num_ctx
                 opts = data.get("options")
                 if isinstance(opts, dict):
@@ -243,6 +240,8 @@ class OllamaProxyHandler(http.server.BaseHTTPRequestHandler):
                 if self.path == "/api/chat" and "messages" in data:
                     role_chars = {}
                     for msg in data["messages"]:
+                        if not isinstance(msg, dict):
+                            continue
                         role = msg.get("role", "unknown")
                         content = msg.get("content") or ""
                         orig_len = len(content)
@@ -279,7 +278,8 @@ class OllamaProxyHandler(http.server.BaseHTTPRequestHandler):
                 if self.path == "/api/chat" and "messages" in data:
                     scannable = [
                         msg for msg in data["messages"]
-                        if msg.get("role") in ("user", "tool")
+                        if isinstance(msg, dict)
+                        and msg.get("role") in ("user", "tool")
                         and isinstance(msg.get("content"), str)
                         and msg["content"]
                     ]
@@ -300,32 +300,41 @@ class OllamaProxyHandler(http.server.BaseHTTPRequestHandler):
                                 self._block("prompt injection detected")
                                 return
 
-                    # Layer 2 — LLM classifier (only if at least one user/tool message exists)
+                    # Layer 2 — LLM classifier (scans all user/tool messages up to
+                    # classifier context budget, newest-first, to catch multi-turn poisoning)
                     if scannable:
-                        last_user = next(
-                            (m["content"] for m in reversed(data["messages"])
-                             if m.get("role") in ("user", "tool")
-                             and isinstance(m.get("content"), str)),
-                            None,
-                        )
-                        if last_user is not None:
-                            is_unsafe, verdict = self._classify(last_user)
-                            if is_unsafe:
-                                preview = last_user[:100].replace("\n", " ")
-                                print(
-                                    f"[proxy] BLOCKED UNSAFE classification | "
-                                    f"model verdict: {verdict} | content preview: {preview}",
-                                    file=sys.stderr,
-                                )
-                                self._block("prompt injection detected", "classifier: UNSAFE")
-                                return
+                        budget_chars = CLASSIFIER_CTX * CHARS_PER_TOKEN
+                        combined_parts: list[str] = []
+                        used_chars = 0
+                        for msg in reversed(scannable):
+                            content = msg["content"]
+                            remaining = budget_chars - used_chars
+                            if remaining <= 0:
+                                break
+                            if len(content) > remaining:
+                                combined_parts.append(content[:remaining])
+                                used_chars += remaining
+                            else:
+                                combined_parts.append(content)
+                                used_chars += len(content)
+                        combined = "\n---\n".join(reversed(combined_parts))
+
+                        is_unsafe, verdict = self._classify(combined)
+                        if is_unsafe:
+                            preview = combined[:100].replace("\n", " ")
                             print(
-                                f"[proxy] classifier SAFE | model: {CLASSIFIER_MODEL} | {len(last_user)}ch",
+                                f"[proxy] BLOCKED UNSAFE classification | "
+                                f"model verdict: {verdict} | content preview: {preview}",
                                 file=sys.stderr,
                             )
+                            self._block("prompt injection detected", "classifier: UNSAFE")
+                            return
+                        print(
+                            f"[proxy] classifier SAFE | model: {CLASSIFIER_MODEL} | "
+                            f"{used_chars}ch ({len(scannable)} messages scanned)",
+                            file=sys.stderr,
+                        )
                 # ── End injection detection ───────────────────────────────────
-            except (json.JSONDecodeError, KeyError):
-                pass
 
         self._forward("POST", body)
 

@@ -159,52 +159,85 @@ docker network create \
 
 ---
 
-## Ollama Proxy (`ollama-proxy`)
+## Ollama Proxy
 
-OpenClaw does not connect directly to Ollama. A lightweight Python proxy sits between them on port <your-proxy-port> and fixes three issues that cannot be configured in OpenClaw itself:
+OpenClaw does not connect directly to Ollama. A lightweight Python proxy sits between them
+and fixes issues that cannot be configured in OpenClaw itself. Two variants are provided —
+choose based on your security requirements.
+
+### Choosing a proxy variant
+
+| Variant | Service | Fixes | Requires |
+|---|---|---|---|
+| **Minimal** (recommended starting point) | `openclaw-proxy` | think:false injection, num_ctx cap | Nothing — self-contained |
+| **Enhanced** (higher security posture) | `ollama-proxy` | All minimal fixes + system prompt truncation + Gate 1 (pattern match) + Gate 2 (LLM classifier) injection detection | `patterns.conf` and `classifier-prompt.txt` (operator-supplied) |
+
+Both proxy variants fix the two issues that block inference on constrained hardware:
 
 | Problem | Proxy fix |
 |---|---|
-| OpenClaw sends `num_ctx=16384` → Ollama allocates 1.8 GiB KV cache → inference hangs (Pi 5 CPU hits a cache-miss cliff above ~4096 context) | Cap `options.num_ctx` at `PROXY_MAX_CTX` (4096) before forwarding |
+| OpenClaw sends `num_ctx` values that exceed safe KV cache limits → Ollama allocates too much RAM → inference hangs | Cap `options.num_ctx` at `PROXY_MAX_CTX` before forwarding |
 | qwen3 thinking mode generates 200+ tokens per tool call (~50s/call) | Inject `"think": false` on every POST request |
-| OpenClaw sends a ~4,600-token system prompt on every request → Pi 5 prefill takes ~248s (exceeds timeout) | Truncate system message to `PROXY_MAX_SYSTEM_CHARS` (500 chars, ~125 tokens) before forwarding |
-| Malicious Telegram/Signal messages may contain prompt injection attacks | Two-layer detection: pattern matching (Gate 1) + LLM classifier (Gate 2) — see [Security Hardening doc](03-security-hardening.md#layer-8-prompt-injection-detection-ollama-proxy) |
 
-The proxy is a systemd service that starts after Ollama:
+The enhanced variant additionally fixes:
+
+| Problem | Fix |
+|---|---|
+| OpenClaw sends a multi-thousand-token system prompt on every request → Pi 5 prefill takes hundreds of seconds (exceeds timeout) | Truncate system message to `PROXY_MAX_SYSTEM_CHARS` (500 chars, ~125 tokens) |
+| Malicious messages may contain prompt injection attacks | Two-layer detection: pattern matching (Gate 1) + LLM classifier (Gate 2) — see [Security Hardening doc](03-security-hardening.md) |
+
+### Architecture
 
 ```text
 OpenClaw container
   │ http://host.docker.internal:<your-proxy-port>
   ▼
-ollama-proxy  (0.0.0.0:<your-proxy-port>, /etc/ollama-proxy/proxy.py)
+openclaw-proxy or ollama-proxy  (0.0.0.0:<your-proxy-port>)
   │ http://127.0.0.1:11434
   ▼
-Ollama  (127.0.0.1:11434, native systemd service — loopback only)
+Ollama  (127.0.0.1:11434, native systemd service)
 ```
+
+### Context window — two-value design
+
+`contextWindow` in `openclaw.json` and `PROXY_MAX_CTX` in the proxy service are
+intentionally different values and serve different purposes:
+
+- **`contextWindow`** — metadata the gateway reads for eligibility. OpenClaw enforces a
+  minimum of 16000 tokens; values below this block all inference with
+  "context window too small". Set to `16384`.
+- **`PROXY_MAX_CTX`** — the actual `num_ctx` cap sent to Ollama. This controls KV cache
+  allocation and RAM usage. At `num_ctx=16384` the model uses ~5.5 GB RAM on a Pi 5
+  (dangerously close to OOM on an 8 GB device). At `num_ctx=8192` it uses ~4.2 GB —
+  safe margin. Set to `8192`.
+
+Do not set `PROXY_MAX_CTX` to match `contextWindow` or you risk OOM on constrained hardware.
+
+### Managing the proxy
 
 ```bash
-# Check status
-ssh <hostname> "sudo systemctl status ollama-proxy --no-pager"
+# Check status (substitute openclaw-proxy or ollama-proxy)
+ssh <hostname> "sudo systemctl status openclaw-proxy --no-pager"
 
-# View logs (shows num_ctx cap events)
-ssh <hostname> "sudo journalctl -u ollama-proxy -n 20 --no-pager"
-
-# Edit proxy logic
-ssh <hostname> "sudo nano /etc/ollama-proxy/proxy.py"
-
-# Edit injection patterns
-ssh <hostname> "sudo nano /etc/ollama-proxy/patterns.conf"
+# View logs (shows num_ctx cap events and think:false injections)
+ssh <hostname> "sudo journalctl -u openclaw-proxy -n 20 --no-pager"
 
 # Edit tuning env vars
-ssh <hostname> "sudo nano /etc/systemd/system/ollama-proxy.service"
+ssh <hostname> "sudo nano /etc/systemd/system/openclaw-proxy.service"
 
 # Reload after any change
-ssh <hostname> "sudo systemctl daemon-reload && sudo systemctl restart ollama-proxy"
+ssh <hostname> "sudo systemctl daemon-reload && sudo systemctl restart openclaw-proxy"
 ```
 
-**Do not bypass the proxy** by changing `baseUrl` back to port 11434. Without the proxy, any chat message causes a multi-minute hang (or permanent freeze) due to the KV cache allocation issue, and all prompt injection protection is silently removed.
+For the enhanced variant (`ollama-proxy`), also:
 
-**Do not add injection patterns to `proxy.py`.** Patterns belong in `/etc/ollama-proxy/patterns.conf` only. `proxy.py` is published to the open source project; `patterns.conf` is internal and never published.
+```bash
+# Edit injection patterns
+ssh <hostname> "sudo nano /etc/ollama-proxy/patterns.conf"
+```
+
+**Do not bypass the proxy** by changing `baseUrl` back to port 11434. Without the proxy,
+any chat message may cause a multi-minute hang due to uncapped KV cache allocation.
 
 ---
 
@@ -230,22 +263,13 @@ OpenClaw is configured to use Ollama via the proxy. The config at `~/.openclaw/o
         "api": "ollama",
         "models": [
           {
-            "id": "qwen3:1.7b-q4_K_M",
-            "name": "Qwen3 1.7B (Q4_K_M, no-think)",
+            "id": "qwen3:4b-q4_K_M",
+            "name": "Qwen3 4B (Q4_K_M, no-think)",
             "reasoning": false,
             "input": ["text"],
             "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
-            "contextWindow": 32768,
-            "maxTokens": 2048
-          },
-          {
-            "id": "qwen2.5:3b-instruct-q4_K_M",
-            "name": "Qwen 2.5 3B Instruct (Q4_K_M)",
-            "reasoning": false,
-            "input": ["text"],
-            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
-            "contextWindow": 32768,
-            "maxTokens": 2048
+            "contextWindow": 16384,
+            "maxTokens": 512
           }
         ]
       }
@@ -254,15 +278,18 @@ OpenClaw is configured to use Ollama via the proxy. The config at `~/.openclaw/o
   "agents": {
     "defaults": {
       "model": {
-        "primary": "ollama/qwen3:1.7b-q4_K_M",
-        "fallbacks": ["ollama/qwen2.5:3b-instruct-q4_K_M"]
+        "primary": "ollama/qwen3:4b-q4_K_M",
+        "fallbacks": []
       }
     }
   }
 }
 ```
 
-Note: `contextWindow: 32768` exceeds OpenClaw's 16000-token minimum and silences the `low context window` log warning. The proxy intercepts the resulting `num_ctx=32768` and caps it to 4096 before Ollama ever sees it — no performance impact.
+**`contextWindow` and `maxTokens` values explained:**
+
+- `contextWindow: 16384` satisfies OpenClaw's 16000-token minimum eligibility check. The proxy caps the actual KV cache (`PROXY_MAX_CTX`) independently — typically at 8192 on a Pi 5. See [two-value design](#context-window--two-value-design) above.
+- `maxTokens: 512` is a practical cap for ~4 t/s hardware. At 512 tokens, worst-case generation is ~128s — within the gateway's LLM timeout. Setting this higher risks timeout before completion.
 
 ### How Docker reaches Ollama
 
@@ -327,6 +354,13 @@ ssh <hostname> "cd ~/openclaw && docker compose restart openclaw-gateway"
 ### Access the web UI (via SSH tunnel)
 
 The gateway is bound to Pi-localhost only. Access requires an SSH tunnel from your Mac.
+
+> **Why a tunnel is required:** The browser dashboard uses the Web Crypto API for device
+> identity. Web Crypto requires a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts)
+> — either HTTPS or `localhost`. Accessing the dashboard via a LAN IP over HTTP (e.g.
+> `http://192.168.x.x:18789`) triggers the error "control ui requires device identity".
+> The SSH tunnel forwards port 18789 to `localhost` on your Mac, satisfying the secure
+> context requirement without needing TLS. Use `http://localhost:18789` — not the Pi's IP.
 
 #### One-time setup — `~/.ssh/config` on your Mac
 
@@ -393,6 +427,8 @@ Once approved, the device is remembered — pairing is only required once per br
 
 The container has a built-in health check probing `http://127.0.0.1:18789/api/health` every 30 seconds. To view health status:
 
+> **Important:** The gateway health check reports `healthy` as soon as the HTTP process is up — it does **not** verify that inference is working. Always confirm the proxy is reachable from the container (`curl http://host.docker.internal:<your-proxy-port>/api/tags` from inside the container) before trusting a `healthy` status after a network or UFW change.
+
 ```bash
 # Via docker compose (preferred — no need to know the container name)
 ssh <hostname> "cd ~/openclaw && docker compose ps"
@@ -422,9 +458,9 @@ Common causes and fixes:
 | `non-loopback Control UI requires ... allowedOrigins` | Add `controlUi.allowedOrigins` to `openclaw.json` |
 | `models.providers.ollama.models ... expected array` | Add `"models": [...]` array to Ollama provider in config |
 | `models.providers.ollama.models.0 ... expected object` | Each model in the array must be an object with `id`, `name`, `reasoning`, `input`, `cost`, `contextWindow`, `maxTokens` fields |
-| `fetch failed` after ~5 minutes, Ollama 500 error | OpenClaw is sending requests directly to Ollama (port 11434) with `num_ctx=16384`. This allocates a 1.8 GiB KV cache and inference hangs. Ensure `baseUrl` in `openclaw.json` points to **port <your-proxy-port>** (the proxy), not 11434. |
-| `context window too small (N tokens). Minimum is 16000` | OpenClaw enforces a 16000-token minimum. `contextWindow` must be ≥ 16000. Use `32768` — the proxy caps the actual `num_ctx` sent to Ollama at 4096 regardless, so there is no performance cost. |
-| Inference hangs even with proxy running | The proxy may have been bypassed, or Ollama has a stuck runner from a previous large-context request. Restart Ollama: `sudo systemctl restart ollama`. Confirm the proxy is capping: `sudo journalctl -u ollama-proxy -n 20`. |
+| `fetch failed` after ~5 minutes, Ollama 500 error | OpenClaw is sending requests directly to Ollama (port 11434) with an uncapped `num_ctx`. Ensure `baseUrl` in `openclaw.json` points to **port <your-proxy-port>** (the proxy), not 11434. |
+| `context window too small (N tokens). Minimum is 16000` | OpenClaw enforces a 16000-token minimum on the `contextWindow` metadata field. Set `contextWindow: 16384` in `openclaw.json`. The proxy caps the actual KV cache via `PROXY_MAX_CTX` (default 8192) — the two values serve different purposes. |
+| Inference hangs even with proxy running | The proxy may have been bypassed, or Ollama has a stuck runner from a previous large-context request. Restart Ollama: `sudo systemctl restart ollama`. Confirm the proxy is capping: `sudo journalctl -u openclaw-proxy -n 20` (or `ollama-proxy` if using the enhanced variant). |
 
 ### Control UI auth errors
 
@@ -470,10 +506,11 @@ ssh <hostname> "cd ~/openclaw && docker compose logs --tail=50 openclaw-gateway"
 ssh <hostname> "cd ~/openclaw && docker compose restart openclaw-gateway"
 
 # 4. If restart doesn't help, check that Ollama and the proxy are up
-ssh <hostname> "sudo systemctl status ollama ollama-proxy --no-pager"
+ssh <hostname> "sudo systemctl status ollama openclaw-proxy --no-pager"
+# (substitute ollama-proxy if using the enhanced variant)
 
 # 5. If either is down, restart them first, then restart the gateway
-ssh <hostname> "sudo systemctl restart ollama ollama-proxy"
+ssh <hostname> "sudo systemctl restart ollama openclaw-proxy"
 sleep 10
 ssh <hostname> "cd ~/openclaw && docker compose restart openclaw-gateway"
 ```

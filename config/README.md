@@ -20,8 +20,10 @@ Deploy each file to its target path on the Pi. Apply the specified permissions a
 
 | File in this repo | Target path on Pi | Permissions | Notes |
 |---|---|---|---|
-| `etc/ollama-proxy/proxy.py` | `/etc/ollama-proxy/proxy.py` | `644 root:root` | Proxy script — reads config from env vars |
-| `etc/systemd/system/ollama-proxy.service` | `/etc/systemd/system/ollama-proxy.service` | `644 root:root` | **Fill in `<your-value>` placeholders before deploying** |
+| `etc/openclaw-proxy/proxy.py` | `/etc/openclaw-proxy/proxy.py` | `644 root:root` | **Minimal proxy** — think:false injection + num_ctx cap. No external files required. |
+| `etc/systemd/system/openclaw-proxy.service` | `/etc/systemd/system/openclaw-proxy.service` | `644 root:root` | Minimal proxy service — concrete architectural values (no placeholders needed) |
+| `etc/ollama-proxy/proxy.py` | `/etc/ollama-proxy/proxy.py` | `644 root:root` | **Enhanced proxy** — adds system prompt truncation + Gate 1 (pattern match) + Gate 2 (LLM classifier). Requires `patterns.conf` and `classifier-prompt.txt`. |
+| `etc/systemd/system/ollama-proxy.service` | `/etc/systemd/system/ollama-proxy.service` | `644 root:root` | Enhanced proxy service — **fill in `<your-value>` placeholders before deploying** |
 | `etc/systemd/system/ollama.service.d/override.conf` | `/etc/systemd/system/ollama.service.d/override.conf` | `644 root:root` | Binds Ollama to loopback only |
 | `etc/docker/daemon.json` | `/etc/docker/daemon.json` | `644 root:root` | Hardened Docker daemon config |
 | `etc/ssh/sshd_config.d/99-hardening.conf` | `/etc/ssh/sshd_config.d/99-hardening.conf` | `644 root:root` | **Fill in `<your-value>` placeholders before deploying** |
@@ -43,19 +45,34 @@ Deploy each file to its target path on the Pi. Apply the specified permissions a
 mkdir -p ~/openclaw ~/.openclaw/workspace
 chmod 750 ~/openclaw
 chmod 700 ~/.openclaw ~/.openclaw/workspace
-sudo mkdir -p /etc/ollama-proxy /etc/systemd/system/ollama.service.d
+# For the minimal proxy:
+sudo mkdir -p /etc/openclaw-proxy /etc/systemd/system/ollama.service.d
+# For the enhanced proxy (if using ollama-proxy instead):
+sudo mkdir -p /etc/ollama-proxy
 ```
 
 ### 2. Deploy files
 
+Choose **one** proxy variant:
+
+**Option A — Minimal proxy (recommended starting point, no external files required):**
+
 ```bash
-# Copy each file to its target path (from the table above)
-sudo cp etc/ollama-proxy/proxy.py /etc/ollama-proxy/proxy.py
-sudo cp etc/systemd/system/ollama-proxy.service /etc/systemd/system/ollama-proxy.service
-# ... repeat for each file
+sudo cp etc/openclaw-proxy/proxy.py /etc/openclaw-proxy/proxy.py
+sudo cp etc/systemd/system/openclaw-proxy.service /etc/systemd/system/openclaw-proxy.service
+# ... then copy remaining non-proxy files
 ```
 
-### 3. Create `patterns.conf` and `classifier-prompt.txt`
+**Option B — Enhanced proxy (Gate 1 + Gate 2 injection detection):**
+
+```bash
+sudo cp etc/ollama-proxy/proxy.py /etc/ollama-proxy/proxy.py
+sudo cp etc/systemd/system/ollama-proxy.service /etc/systemd/system/ollama-proxy.service
+# Fill in <your-value> placeholders in ollama-proxy.service before deploying
+# ... then create patterns.conf and classifier-prompt.txt (Step 3 below)
+```
+
+### 3. Create `patterns.conf` and `classifier-prompt.txt` (enhanced proxy only)
 
 Both files must be created manually — they are not included in this repository.
 
@@ -126,7 +143,10 @@ docker inspect <container-id> --format '{{.HostConfig.Memory}}'
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now ollama-proxy
+# Enable whichever proxy variant you deployed (not both):
+sudo systemctl enable --now openclaw-proxy   # minimal variant
+# or:
+sudo systemctl enable --now ollama-proxy     # enhanced variant
 sudo systemctl restart ollama
 ```
 
@@ -141,15 +161,24 @@ docker compose ps  # verify healthy
 
 ## UFW Firewall Rules
 
-After Docker creates the `openclaw_net` network, add firewall rules to allow the proxy port only from that bridge:
+The `openclaw_net` Docker bridge is a user-defined network (not `docker0`). Container traffic
+from this bridge hits UFW INPUT rules. Add source-scoped ALLOW rules so containers can reach
+the proxy and Ollama on the host — **before** any broad DENY rules for these ports:
 
 ```bash
-BRIDGE=$(docker network inspect openclaw_net --format '{{index .Options "com.docker.network.bridge.name"}}')
-sudo ufw allow in on $BRIDGE to any port <your-proxy-port> proto tcp comment 'Ollama proxy: openclaw_net bridge'
-sudo ufw deny <your-proxy-port> comment 'Block external Ollama proxy access'
+# Allow the openclaw_net bridge subnet (172.18.0.0/16 by default) to reach the proxy and Ollama
+sudo ufw allow from 172.18.0.0/16 to any port <your-proxy-port> proto tcp comment 'Proxy - openclaw_net bridge'
+sudo ufw allow from 172.18.0.0/16 to any port 11434 proto tcp comment 'Ollama - openclaw_net bridge'
 ```
 
-Run `sudo ufw status` to verify the ALLOW rule appears before the DENY rule for the proxy port.
+Run `sudo ufw status verbose` and verify:
+
+- Default: `deny (incoming)`
+- Expected ALLOW rules: SSH (×2 IPv4/IPv6) + proxy port from bridge subnet (×2) + Ollama port from bridge subnet (×2) = 6 rules total
+- Docker-published ports (18789, 18790) bypass UFW via iptables — no UFW rule needed for them
+
+> **Note:** If your `openclaw_net` bridge uses a different subnet, check with:
+> `docker network inspect openclaw_net --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'`
 
 ---
 

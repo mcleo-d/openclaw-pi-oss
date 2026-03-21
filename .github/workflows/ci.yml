@@ -43,6 +43,8 @@ jobs:
             "config/etc/apt/apt.conf.d/20auto-upgrades"
             "config/etc/systemd/system/ollama.service.d/override.conf"
             "config/etc/ollama-proxy/proxy.py"
+            "config/etc/openclaw-proxy/proxy.py"
+            "config/etc/systemd/system/openclaw-proxy.service"
           )
           failed=0
           for f in "${files[@]}"; do
@@ -72,5 +74,10 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Check proxy.py syntax
-        run: python3 -m py_compile config/etc/ollama-proxy/proxy.py
+      - name: Check proxy.py syntax (both variants)
+        run: |
+          python3 -m py_compile config/etc/ollama-proxy/proxy.py
+          python3 -m py_compile config/etc/openclaw-proxy/proxy.py
+
+      - name: Run proxy unit tests
+        run: python3 -m unittest discover -s tests -v
