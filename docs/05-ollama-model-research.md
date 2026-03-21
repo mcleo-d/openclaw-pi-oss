@@ -393,6 +393,52 @@ ssh <hostname> "free -h"
 
 ---
 
+## 2026-03-21 Addendum — qwen3:4b Instability Root Cause + Model Evaluation
+
+### Root causes of qwen3:4b-q4_K_M instability
+
+qwen3:4b was evaluated as an alternative primary model but produced empty responses under production load. Two compounding bugs were identified:
+
+#### Bug 1 — think:false proxy injection silently broken (CRITICAL)
+
+`proxy.py` was injecting `think: false` into `payload["options"]["think"]`. The Ollama API expects `think` as a **top-level field** (`payload["think"]`), not inside `options{}`. The injection was silently ignored — thinking mode was active on every call.
+
+Effect: qwen3:4b generated 147+ internal reasoning tokens per simple request, consuming its entire `num_predict` budget before producing visible output. Response was empty.
+
+Fix: Changed `opts.setdefault("think", False)` to `payload.setdefault("think", False)` in both proxy variants. Verified: eval_count dropped from 147 to ~23 for a short prompt.
+
+#### Bug 2 — RAM pressure at num_ctx=8192
+
+At `num_ctx=8192`, qwen3:4b-q4_K_M allocates ~4.2 GB RAM, leaving only ~1.5 GB headroom on an 8 GB device. Any concurrent memory spike triggers OOM pressure → inference hangs.
+
+### Model evaluation — 2026-03-21
+
+| Model | Capability check | Outcome |
+|---|---|---|
+| `gemma3:1b` (official) | `ollama show` → Capabilities: `completion` only — no `tools` | ❌ Rejected — requires tools capability |
+| Community 1b variant | Tag not found on Ollama Hub | ❌ Does not exist |
+| `qwen3:1.7b-q4_K_M` | tools capability confirmed, proven stable previously | ✅ Selected |
+
+### Benchmark — qwen3:1.7b-q4_K_M at num_ctx=8192
+
+| Metric | Value | Threshold | Result |
+|---|---|---|---|
+| RAM (Ollama, loaded) | 2.4 GB | — | INFO |
+| RAM headroom available | >5 GB | ≥ 3 GB | PASS |
+| Warm t/s | 8.3 t/s | ≥ 8.0 | PASS |
+| eval_count (simple prompt, think:false active) | ~23 tokens | ≤ 100 | PASS |
+| Response non-empty | yes | required | PASS |
+| Tool calls emitted | verified | required | PASS |
+
+### Accepted constraints
+
+| Constraint | Detail |
+|---|---|
+| Context window pressure | ~4,600-token OpenClaw system prompt consumes ~56% of an 8192-token context window at `PROXY_MAX_CTX=8192`. Limits tool-chain depth to ~2–3 calls before context pressure. Roadmap: system prompt compression. |
+| gemma3:1b future path | Recheck official `gemma3:1b` tool support in future Ollama versions. If tools capability is added, it offers ~1.0–1.2 GB RAM at 8192 ctx — further headroom improvement. |
+
+---
+
 ## Sources
 
 | Source | Key data |
