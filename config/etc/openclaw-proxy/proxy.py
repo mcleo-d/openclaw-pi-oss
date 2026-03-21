@@ -83,8 +83,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
             try:
                 payload = json.loads(body)
                 opts = payload.setdefault("options", {})
-                # Inject think:false — disables Qwen3 chain-of-thought on every call
-                opts.setdefault("think", False)
+                # Inject think:false at top level — Ollama expects this as a top-level field,
+                # not inside options{}. Disables Qwen3 chain-of-thought on every call.
+                payload.setdefault("think", False)
                 # Cap num_ctx — prevents KV cache overflow on Cortex-A76
                 ctx = opts.get("num_ctx", MAX_CTX)
                 opts["num_ctx"] = min(ctx, MAX_CTX)
