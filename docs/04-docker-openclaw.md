@@ -209,8 +209,8 @@ intentionally different values and serve different purposes:
   "context window too small". Set to `16384`.
 - **`PROXY_MAX_CTX`** — the actual `num_ctx` cap sent to Ollama. This controls KV cache
   allocation and RAM usage. At `num_ctx=16384` the model uses ~5.5 GB RAM on a Pi 5
-  (dangerously close to OOM on an 8 GB device). At `num_ctx=8192` it uses ~4.2 GB —
-  safe margin. Set to `8192`.
+  (dangerously close to OOM on an 8 GB device). At `num_ctx=4096` with
+  `qwen3:1.7b-q4_K_M` it uses ~1.7 GB — safe margin with >6 GB headroom. Set to `4096`.
 
 Do not set `PROXY_MAX_CTX` to match `contextWindow` or you risk OOM on constrained hardware.
 
@@ -289,7 +289,7 @@ OpenClaw is configured to use Ollama via the proxy. The config at `~/.openclaw/o
 
 **`contextWindow` and `maxTokens` values explained:**
 
-- `contextWindow: 16384` satisfies OpenClaw's 16000-token minimum eligibility check. The proxy caps the actual KV cache (`PROXY_MAX_CTX`) independently — typically at 8192 on a Pi 5. See [two-value design](#context-window--two-value-design) above.
+- `contextWindow: 16384` satisfies OpenClaw's 16000-token minimum eligibility check. The proxy caps the actual KV cache (`PROXY_MAX_CTX`) independently — typically at 4096 on a Pi 5. See [two-value design](#context-window--two-value-design) above.
 - `maxTokens: 512` is a practical cap for ~4 t/s hardware. At 512 tokens, worst-case generation is ~128s — within the gateway's LLM timeout. Setting this higher risks timeout before completion.
 
 ### How Docker reaches Ollama
@@ -460,7 +460,7 @@ Common causes and fixes:
 | `models.providers.ollama.models ... expected array` | Add `"models": [...]` array to Ollama provider in config |
 | `models.providers.ollama.models.0 ... expected object` | Each model in the array must be an object with `id`, `name`, `reasoning`, `input`, `cost`, `contextWindow`, `maxTokens` fields |
 | `fetch failed` after ~5 minutes, Ollama 500 error | OpenClaw is sending requests directly to Ollama (port 11434) with an uncapped `num_ctx`. Ensure `baseUrl` in `openclaw.json` points to **port <your-proxy-port>** (the proxy), not 11434. |
-| `context window too small (N tokens). Minimum is 16000` | OpenClaw enforces a 16000-token minimum on the `contextWindow` metadata field. Set `contextWindow: 16384` in `openclaw.json`. The proxy caps the actual KV cache via `PROXY_MAX_CTX` (default 8192) — the two values serve different purposes. |
+| `context window too small (N tokens). Minimum is 16000` | OpenClaw enforces a 16000-token minimum on the `contextWindow` metadata field. Set `contextWindow: 16384` in `openclaw.json`. The proxy caps the actual KV cache via `PROXY_MAX_CTX` (default 4096) — the two values serve different purposes. |
 | Inference hangs even with proxy running | The proxy may have been bypassed, or Ollama has a stuck runner from a previous large-context request. Restart Ollama: `sudo systemctl restart ollama`. Confirm the proxy is capping: `sudo journalctl -u openclaw-proxy -n 20` (or `ollama-proxy` if using the enhanced variant). |
 
 ### Control UI auth errors

@@ -84,7 +84,7 @@ accidental credential commits. The baseline is stored in `.secrets.baseline`.
 To run the scan locally:
 
 ```bash
-pip install detect-secrets
+pip install detect-secrets==1.5.0
 detect-secrets scan --baseline .secrets.baseline
 git diff --exit-code .secrets.baseline
 ```
@@ -159,14 +159,42 @@ Before opening a PR, confirm:
 
 ## Commit messages
 
-No strict convention is enforced. Please write a clear, present-tense subject line that
-describes what the commit does, for example:
+This project uses [Conventional Commits](https://www.conventionalcommits.org/). Please
+prefix your subject line with a type:
+
+| Type | When to use |
+|---|---|
+| `feat:` | New capability (new proxy feature, new config template, new doc section) |
+| `fix:` | Bug fix or correction |
+| `docs:` | Documentation-only change |
+| `ci:` | CI pipeline or pre-commit hook change |
+| `refactor:` | Code change with no behaviour change |
+| `chore:` | Maintenance (Dependabot updates, baseline refresh) |
+
+Examples:
 
 ```text
-Add AppArmor profile for OpenClaw container
-Fix proxy num_ctx cap not applying to streaming requests
-Clarify fail2ban threshold placeholder in deployment guide
+feat: add AppArmor profile for OpenClaw container
+fix: proxy num_ctx cap not applying to streaming requests
+docs: clarify fail2ban threshold placeholder in deployment guide
 ```
+
+---
+
+## Developer Certificate of Origin
+
+All commits must include a sign-off certifying you have the right to contribute
+the code. Add `-s` to your commit:
+
+```bash
+git commit -s -m "feat: add AppArmor profile for OpenClaw container"
+```
+
+This adds a `Signed-off-by: Your Name <email@example.com>` trailer to your commit
+message. By signing off, you certify compliance with the
+[Developer Certificate of Origin v1.1](https://developercertificate.org/).
+
+**This project does not require a CLA.** DCO sign-off is sufficient.
 
 ---
 

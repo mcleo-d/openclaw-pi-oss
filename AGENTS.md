@@ -1,5 +1,9 @@
 # AGENTS.md — AI Contribution Guide
 
+> **This file is for AI-assisted contributors.** If you are contributing manually —
+> without Claude Code, GitHub Copilot, Cursor, or a similar tool — you can skip
+> this file entirely. Follow [CONTRIBUTING.md](CONTRIBUTING.md) instead.
+
 This file provides context for AI coding assistants (Claude Code, GitHub Copilot, Cursor,
 or any other tool) contributing to `openclaw-pi-oss`.
 

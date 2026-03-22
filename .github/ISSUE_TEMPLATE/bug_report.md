@@ -4,6 +4,9 @@ about: Something is not working as documented
 labels: bug
 ---
 
+> **Security issue?** Do not open a public issue.
+> Use [private vulnerability reporting](https://github.com/mcleo-d/openclaw-pi-oss/security/advisories/new) — see [SECURITY.md](../SECURITY.md).
+
 ## Environment
 
 | Item | Value |
@@ -32,10 +35,11 @@ labels: bug
 
 <!-- Paste relevant logs below. Remove any sensitive values before posting. -->
 
-**Proxy logs:**
+**Proxy logs** (use whichever variant you deployed):
 
 ```text
 sudo journalctl -u ollama-proxy -n 50 --no-pager
+sudo journalctl -u openclaw-proxy -n 50 --no-pager
 ```
 
 **OpenClaw logs:**

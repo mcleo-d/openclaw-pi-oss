@@ -145,6 +145,10 @@ For day-to-day operation and troubleshooting, see
 | [`docs/04-docker-openclaw.md`](docs/04-docker-openclaw.md) | Docker and OpenClaw setup, proxy config, troubleshooting |
 | [`docs/05-ollama-model-research.md`](docs/05-ollama-model-research.md) | Model benchmarks, selection rationale, Pi 5 performance data |
 | [`ROADMAP.md`](ROADMAP.md) | Planned improvements and future work |
+| [`CHANGELOG.md`](CHANGELOG.md) | Change history — breaking changes, new features, fixes |
+| [`GOVERNANCE.md`](GOVERNANCE.md) | Project decision-making and maintainer path |
+| [`SUPPORT.md`](SUPPORT.md) | How to get help and which channel to use |
+| [`NOTICE`](NOTICE) | Third-party attribution (Apache 2.0 requirement) |
 
 ---
 

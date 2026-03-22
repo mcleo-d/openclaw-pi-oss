@@ -1,0 +1,15 @@
+OpenClaw on Raspberry Pi 5 — Reference Deployment
+Copyright 2026 James McLeod
+
+This product is built around the following third-party components,
+which are used as-is and unmodified:
+
+  OpenClaw             https://openclaw.ai
+  Ollama               https://ollama.com
+  Raspberry Pi OS      https://www.raspberrypi.com/software/
+
+The Ollama proxy (config/etc/ollama-proxy/proxy.py and
+config/etc/openclaw-proxy/proxy.py) is original work by James McLeod,
+licensed under the Apache License, Version 2.0.
+
+See the LICENSE file for the full Apache 2.0 licence text.

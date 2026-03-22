@@ -83,6 +83,8 @@ files=(
   "config/etc/apt/apt.conf.d/20auto-upgrades"
   "config/etc/systemd/system/ollama.service.d/override.conf"
   "config/etc/ollama-proxy/proxy.py"
+  "config/etc/openclaw-proxy/proxy.py"
+  "config/etc/systemd/system/openclaw-proxy.service"
 )
 for f in "${files[@]}"; do
   if [ -f "$f" ] && grep -q '<your-' "$f"; then
@@ -96,9 +98,18 @@ done
 # ---------------------------------------------------------------------------
 PROXY="config/etc/ollama-proxy/proxy.py"
 if [ -f "$PROXY" ]; then
-  echo "Running proxy.py syntax check..."
+  echo "Running ollama-proxy/proxy.py syntax check..."
   if ! python3 -m py_compile "$PROXY"; then
-    echo "ERROR: proxy.py has a syntax error (see above)."
+    echo "ERROR: ollama-proxy/proxy.py has a syntax error (see above)."
+    ERRORS=1
+  fi
+fi
+
+PROXY2="config/etc/openclaw-proxy/proxy.py"
+if [ -f "$PROXY2" ]; then
+  echo "Running openclaw-proxy/proxy.py syntax check..."
+  if ! python3 -m py_compile "$PROXY2"; then
+    echo "ERROR: openclaw-proxy/proxy.py has a syntax error (see above)."
     ERRORS=1
   fi
 fi

@@ -434,7 +434,7 @@ At `num_ctx=8192`, qwen3:4b-q4_K_M allocates ~4.2 GB RAM, leaving only ~1.5 GB h
 
 | Constraint | Detail |
 |---|---|
-| Context window pressure | ~4,600-token OpenClaw system prompt consumes ~56% of an 8192-token context window at `PROXY_MAX_CTX=8192`. Limits tool-chain depth to ~2–3 calls before context pressure. Roadmap: system prompt compression. |
+| Context window pressure | ~4,600-token OpenClaw system prompt would consume ~56% of an 8192-token context window. At the current default `PROXY_MAX_CTX=4096`, system prompt truncation (`PROXY_MAX_SYSTEM_CHARS=500`) reduces this to ~125 tokens, preserving context depth. Roadmap: intelligent system prompt compression. |
 | gemma3:1b future path | Recheck official `gemma3:1b` tool support in future Ollama versions. If tools capability is added, it offers ~1.0–1.2 GB RAM at 8192 ctx — further headroom improvement. |
 
 ---

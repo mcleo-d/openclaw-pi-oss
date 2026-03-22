@@ -13,8 +13,12 @@
 
 ## Testing
 
-<!-- How was this tested? If Pi hardware was used, include model and OS version. -->
-<!-- Documentation-only changes: state that no hardware testing is required. -->
+- [ ] Tested on Raspberry Pi 5 hardware — include model, RAM, OS version, Ollama version below
+- [ ] Configuration change only — verified no real values introduced, templates syntactically valid
+- [ ] Documentation only — markdown linting passes locally (`markdownlint-cli2 "**/*.md" "!node_modules"`)
+- [ ] No hardware testing required for this change
+
+<!-- If Pi hardware was used, include details here: -->
 
 ## Related issues
 
