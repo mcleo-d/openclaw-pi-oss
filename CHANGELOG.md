@@ -12,6 +12,48 @@ This project does not use semantic versioning — entries are dated. See
 
 ---
 
+## [1.0.0] - 2026-03-22
+
+First production-ready release. Covers the full Phase 1–9 deployment of a
+hardened Raspberry Pi 5 AI agent stack: OS baseline, security hardening,
+Ollama, `openclaw-proxy`, Docker/OpenClaw, UFW, and end-to-end smoke-test
+verification.
+
+### Added
+
+- `openclaw-proxy` (minimal variant) — lightweight Python shim between OpenClaw
+  and Ollama: `think:false` injection, `num_ctx` cap, system message truncation
+  (`PROXY_MAX_SYSTEM_CHARS`), conversation history capping (`PROXY_MAX_MESSAGES`).
+  Reduces Pi 5 response time from ~4–5 min to ~55 s. No external files required.
+- Full Phase 1–9 deployment runbook covering OS baseline, SSH hardening, Ollama
+  setup, proxy deployment, Docker/OpenClaw configuration, UFW rules, launch, and
+  verification.
+- Two-tier Claude Code agent architecture — global specialist agents with
+  project-level overrides documented and validated end-to-end.
+- Unit tests for the minimal proxy variant.
+- Eight-layer security hardening documentation: SSH, UFW, fail2ban, sysctl,
+  disabled services, Docker daemon hardening, container hardening (`cap_drop: ALL`,
+  `read_only: true`, `no-new-privileges`, resource limits), prompt injection
+  detection.
+- Model research documentation: benchmarks, selection rationale, Pi 5 performance
+  data for `qwen3:1.7b-q4_K_M` and `qwen2.5:3b-instruct-q4_K_M`.
+- CI pipeline: secrets scan (`detect-secrets`), placeholder check, markdown lint
+  (`markdownlint-cli2`), proxy syntax check (`py_compile`), Dependabot config.
+- Pre-commit hook mirroring all CI checks; CI test guide with annotated examples.
+- GitHub community files: issue templates, PR template, `CONTRIBUTING.md`,
+  `CODE_OF_CONDUCT.md`, `GOVERNANCE.md`, `SUPPORT.md`, `SECURITY.md`, `ROADMAP.md`.
+
+### Fixed
+
+- `openclaw-proxy`: `PROXY_MAX_MESSAGES=0` now correctly clears all non-system
+  history instead of being treated as unlimited.
+- `openclaw-proxy`: `think:false` injection moved to correct position (before body
+  reserialisation) so it is always forwarded to Ollama.
+- Model name references updated throughout to `qwen3:1.7b-q4_K_M` (primary model
+  confirmed stable in production 2026-03-21).
+
+---
+
 ## [2026-03-22]
 
 ### Added
@@ -79,3 +121,5 @@ This project does not use semantic versioning — entries are dated. See
 
 - `actions/checkout` pinned to commit SHA `6.0.2`
 - `DavidAnson/markdownlint-cli2-action` pinned to commit SHA `v22`
+
+[1.0.0]: https://github.com/mcleo-d/openclaw-pi-oss/releases/tag/v1.0.0
