@@ -10,7 +10,13 @@ OpenClaw is an AI agent framework that can execute shell commands, write files, 
 4. **Supply chain compromise** — a malicious OpenClaw update introducing backdoors
 5. **Brute-force SSH access** — automated attacks against the Pi's SSH port
 
-The hardening below addresses all five threat vectors in a layered, zero-trust model: **treat OpenClaw as untrusted code with unknown intent**.
+Layers 1–7 below address threat vectors 1, 3, 4, and 5 in a layered, zero-trust
+model: **treat OpenClaw as untrusted code with unknown intent**. Threat vector 2
+(prompt injection) is not addressed by the baseline layers. For home-lab deployments
+where all input is operator-controlled, this is an accepted risk. For deployments
+exposed to untrusted input (shared messaging channels, public-facing endpoints),
+deploy the enhanced variant (`ollama-proxy`) documented at the end of this guide,
+or implement equivalent application-layer filtering before exposing the system.
 
 ---
 
@@ -67,7 +73,7 @@ sudo ufw enable
 
 **No rule for port 11434 (Ollama):** Ollama is bound to `127.0.0.1:11434` only — LAN traffic cannot reach it regardless of firewall state. The ufw `DENY 11434` rules were removed as redundant after the loopback binding was applied.
 
-**Important:** Do NOT add `ALLOW in on br-... to any port 11434`. Containers access Ollama exclusively via the proxy on port <your-proxy-port>. Direct container access to port 11434 would bypass the proxy's `num_ctx` cap, `think=false` injection, system message truncation, and **prompt injection detection**.
+**Important:** Do NOT add `ALLOW in on br-... to any port 11434`. Containers access Ollama exclusively via the proxy on port <your-proxy-port>. Direct container access to port 11434 would bypass `openclaw-proxy`'s `num_ctx` cap, `think=false` injection, system message truncation, and history capping. If running the enhanced variant (`ollama-proxy`), it would also bypass prompt injection detection.
 
 **Important:** OpenClaw's port 18789 is bound to `127.0.0.1` (localhost) only. Do NOT add a ufw rule to expose port 18789 externally unless a TLS-terminating reverse proxy (nginx/Caddy) is deployed in front of it.
 
@@ -268,7 +274,11 @@ See `~/openclaw/docker-compose.yml` on the Pi. Key controls:
 
 ---
 
-## Layer 8: Prompt Injection Detection (ollama-proxy)
+## Prompt Injection Detection — Enhanced Variant (ollama-proxy)
+
+This is the `ollama-proxy` enhanced variant — an optional extension to the 7-layer
+baseline for operators handling untrusted input. It adds two sequential detection
+gates on top of Layers 1–7; neither layer requires changes to the base stack.
 
 **File:** `/etc/ollama-proxy/proxy.py`
 
@@ -382,6 +392,6 @@ ssh <hostname> "docker info --format '{{.SecurityOptions}}'"
 # Listening ports
 ssh <hostname> "sudo ss -tlnp"
 
-# Injection detection — confirm proxy is running and recent verdicts
+# Injection detection — enhanced variant (ollama-proxy) only
 ssh <hostname> "sudo journalctl -u ollama-proxy -n 10 --no-pager | grep -E 'BLOCKED|SAFE|classifier|ERROR'"
 ```

@@ -10,6 +10,22 @@ This project does not use semantic versioning — entries are dated. See
 
 ## [Unreleased]
 
+### Added
+
+- OSS community health files expanded to Apache/LF community standards:
+  `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `GOVERNANCE.md`, `SUPPORT.md`
+- Unit tests for `openclaw-proxy` covering `num_ctx` capping, `think=false` hard
+  override, system message truncation, conversation history capping,
+  `PROXY_MAX_MESSAGES=0` edge case, and path-conditional transform routing
+
+### Changed
+
+- README simplified: `openclaw-proxy` established as primary variant;
+  `ollama-proxy` framed as optional enhanced variant with prompt injection detection
+- `docs/03-security-hardening.md`: prompt injection detection section demoted from
+  "Layer 8" to "Enhanced Variant"; threat model intro and firewall callout updated
+  to accurately reflect 7-layer vs enhanced variant coverage
+
 ---
 
 ## [1.0.0] - 2026-03-22
