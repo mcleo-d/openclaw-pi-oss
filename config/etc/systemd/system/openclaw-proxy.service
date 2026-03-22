@@ -1,5 +1,5 @@
 [Unit]
-Description=OpenClaw minimal Ollama proxy (think:false injection, num_ctx cap)
+Description=OpenClaw minimal Ollama proxy (think:false injection, num_ctx cap, message truncation)
 After=ollama.service
 Requires=ollama.service
 
@@ -14,6 +14,8 @@ Environment="PROXY_BIND_PORT=11435"
 Environment="PROXY_OLLAMA_HOST=127.0.0.1"
 Environment="PROXY_OLLAMA_PORT=11434"
 Environment="PROXY_MAX_CTX=8192"
+Environment="PROXY_MAX_SYSTEM_CHARS=500"
+Environment="PROXY_MAX_MESSAGES=10"
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=openclaw-proxy

@@ -5,16 +5,21 @@ openclaw-proxy — minimal Ollama shim for OpenClaw Pi
 Intercepts /api/generate and /api/chat requests from OpenClaw and:
   - Injects think:false to disable Qwen3 chain-of-thought mode
   - Caps num_ctx at MAX_CTX to prevent KV cache overflow on Pi 5
+  - Truncates system messages to MAX_SYSTEM_CHARS to reduce prefill time
+    (OpenClaw sends ~4,600-token system prompts; prefill at 4096 ctx takes
+    ~248s on Pi 5. Truncating to ~500 chars brings prefill to ~10s.)
 
 All other requests and responses are forwarded unchanged.
 No security scanning, no prompt injection detection — home lab use only.
 
 Configuration (via environment variables):
-  PROXY_BIND_HOST   — listen address (default: 0.0.0.0)
-  PROXY_BIND_PORT   — listen port (default: 11435)
-  PROXY_OLLAMA_HOST — Ollama host (default: 127.0.0.1)
-  PROXY_OLLAMA_PORT — Ollama port (default: 11434)
-  PROXY_MAX_CTX     — max num_ctx to allow (default: 4096)
+  PROXY_BIND_HOST       — listen address (default: 0.0.0.0)
+  PROXY_BIND_PORT       — listen port (default: 11435)
+  PROXY_OLLAMA_HOST     — Ollama host (default: 127.0.0.1)
+  PROXY_OLLAMA_PORT     — Ollama port (default: 11434)
+  PROXY_MAX_CTX         — max num_ctx to allow (default: 4096)
+  PROXY_MAX_SYSTEM_CHARS — max system message length in chars (default: 500)
+  PROXY_MAX_MESSAGES    — max non-system messages to keep (default: 10)
 """
 
 import http.client
@@ -28,6 +33,8 @@ OLLAMA_PORT = int(os.getenv("PROXY_OLLAMA_PORT", "11434"))
 BIND_HOST = os.getenv("PROXY_BIND_HOST", "0.0.0.0")
 BIND_PORT = int(os.getenv("PROXY_BIND_PORT", "11435"))
 MAX_CTX = int(os.getenv("PROXY_MAX_CTX", "4096"))
+MAX_SYSTEM_CHARS = int(os.getenv("PROXY_MAX_SYSTEM_CHARS", "500"))
+MAX_MESSAGES = int(os.getenv("PROXY_MAX_MESSAGES", "10"))
 
 INJECT_PATHS = frozenset({"/api/generate", "/api/chat"})
 
@@ -82,13 +89,37 @@ class ProxyHandler(BaseHTTPRequestHandler):
         if self.path in INJECT_PATHS:
             try:
                 payload = json.loads(body)
+                log.info("request path=%s stream=%s body_len=%d think_in_payload=%s num_predict=%s",
+                         self.path, payload.get("stream"), len(body),
+                         payload.get("think", "absent"),
+                         payload.get("options", {}).get("num_predict", "absent"))
                 opts = payload.setdefault("options", {})
-                # Inject think:false at top level — Ollama expects this as a top-level field,
-                # not inside options{}. Disables Qwen3 chain-of-thought on every call.
-                payload.setdefault("think", False)
+                # Force think:false — top-level field, not inside options{}; hard-overrides client
+                payload["think"] = False
                 # Cap num_ctx — prevents KV cache overflow on Cortex-A76
                 ctx = opts.get("num_ctx", MAX_CTX)
                 opts["num_ctx"] = min(ctx, MAX_CTX)
+                # Truncate system messages and cap conversation history — reduces prefill time.
+                # OpenClaw sends ~4,600-token system prompts and unbounded history; both scale
+                # prefill badly on Pi 5 CPU inference.
+                if self.path == "/api/chat":
+                    messages = payload.get("messages", [])
+                    system_msgs, non_system = [], []
+                    for m in messages:
+                        if isinstance(m, dict) and m.get("role") == "system":
+                            system_msgs.append(m)
+                        else:
+                            non_system.append(m)
+                    for msg in system_msgs:
+                        content = msg.get("content") or ""
+                        if len(content) > MAX_SYSTEM_CHARS:
+                            msg["content"] = content[:MAX_SYSTEM_CHARS]
+                            log.info("truncated system message %dch → %dch",
+                                     len(content), MAX_SYSTEM_CHARS)
+                    if len(non_system) > MAX_MESSAGES:
+                        log.info("trimmed message history %d → %d", len(non_system), MAX_MESSAGES)
+                        non_system = non_system[-MAX_MESSAGES:]
+                    payload["messages"] = system_msgs + non_system
                 body = json.dumps(payload).encode()
                 log.debug("injected think=false num_ctx=%d path=%s", opts["num_ctx"], self.path)
             except (json.JSONDecodeError, TypeError, AttributeError) as exc:
@@ -103,8 +134,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     log.info(
-        "openclaw-proxy listening on %s:%d → %s:%d (MAX_CTX=%d)",
-        BIND_HOST, BIND_PORT, OLLAMA_HOST, OLLAMA_PORT, MAX_CTX,
+        "openclaw-proxy listening on %s:%d → %s:%d (MAX_CTX=%d MAX_SYSTEM_CHARS=%d MAX_MESSAGES=%d)",
+        BIND_HOST, BIND_PORT, OLLAMA_HOST, OLLAMA_PORT, MAX_CTX, MAX_SYSTEM_CHARS, MAX_MESSAGES,
     )
     server = HTTPServer((BIND_HOST, BIND_PORT), ProxyHandler)
     server.serve_forever()

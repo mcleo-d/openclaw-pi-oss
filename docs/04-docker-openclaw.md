@@ -263,7 +263,7 @@ OpenClaw is configured to use Ollama via the proxy. The config at `~/.openclaw/o
         "api": "ollama",
         "models": [
           {
-            "id": "qwen3:4b-q4_K_M",
+            "id": "qwen3:1.7b-q4_K_M",
             "name": "Qwen3 4B (Q4_K_M, no-think)",
             "reasoning": false,
             "input": ["text"],
@@ -278,7 +278,7 @@ OpenClaw is configured to use Ollama via the proxy. The config at `~/.openclaw/o
   "agents": {
     "defaults": {
       "model": {
-        "primary": "ollama/qwen3:4b-q4_K_M",
+        "primary": "ollama/qwen3:1.7b-q4_K_M",
         "fallbacks": []
       }
     }
