@@ -81,10 +81,21 @@ os.environ.update({
     "PROXY_MAX_MESSAGES":      "2",                       # small for history capping tests
 })
 
-# Now import proxy — it reads env vars and binds the server at module load time
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "config", "etc", "openclaw-proxy"))
-import proxy as _proxy  # noqa: E402
-from proxy import ProxyHandler  # noqa: E402
+# Load the openclaw-proxy module under a unique name to avoid colliding with
+# the "proxy" module name used by test_proxy.py (ollama-proxy variant).
+# Both files are imported in the same process by `unittest discover`, so a plain
+# `import proxy` would return whichever variant was cached first in sys.modules.
+import importlib.util as _ilu  # noqa: E402
+
+_proxy_path = os.path.join(
+    os.path.dirname(__file__), "..", "config", "etc", "openclaw-proxy", "proxy.py"
+)
+_spec = _ilu.spec_from_file_location("openclaw_proxy", _proxy_path)
+import types as _types  # noqa: E402
+_proxy = _types.ModuleType("openclaw_proxy")
+sys.modules["openclaw_proxy"] = _proxy
+_spec.loader.exec_module(_proxy)  # type: ignore[union-attr]
+ProxyHandler = _proxy.ProxyHandler
 
 
 # ── Proxy server ────────────────────────────────────────────────────────────
