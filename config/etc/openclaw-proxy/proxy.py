@@ -116,9 +116,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
                             msg["content"] = content[:MAX_SYSTEM_CHARS]
                             log.info("truncated system message %dch → %dch",
                                      len(content), MAX_SYSTEM_CHARS)
-                    if len(non_system) > MAX_MESSAGES:
+                    if MAX_MESSAGES >= 0 and len(non_system) > MAX_MESSAGES:
                         log.info("trimmed message history %d → %d", len(non_system), MAX_MESSAGES)
-                        non_system = non_system[-MAX_MESSAGES:]
+                        non_system = non_system[-MAX_MESSAGES:] if MAX_MESSAGES > 0 else []
                     payload["messages"] = system_msgs + non_system
                 body = json.dumps(payload).encode()
                 log.debug("injected think=false num_ctx=%d path=%s", opts["num_ctx"], self.path)

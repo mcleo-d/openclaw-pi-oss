@@ -169,21 +169,22 @@ choose based on your security requirements.
 
 | Variant | Service | Fixes | Requires |
 |---|---|---|---|
-| **Minimal** (recommended starting point) | `openclaw-proxy` | think:false injection, num_ctx cap | Nothing — self-contained |
-| **Enhanced** (higher security posture) | `ollama-proxy` | All minimal fixes + system prompt truncation + Gate 1 (pattern match) + Gate 2 (LLM classifier) injection detection | `patterns.conf` and `classifier-prompt.txt` (operator-supplied) |
+| **Minimal** (recommended starting point) | `openclaw-proxy` | think:false injection, num_ctx cap, system prompt truncation, history capping | Nothing — self-contained |
+| **Enhanced** (higher security posture) | `ollama-proxy` | All minimal fixes + Gate 1 (pattern match) + Gate 2 (LLM classifier) injection detection | `patterns.conf` and `classifier-prompt.txt` (operator-supplied) |
 
-Both proxy variants fix the two issues that block inference on constrained hardware:
+Both proxy variants fix the issues that block inference on constrained hardware:
 
 | Problem | Proxy fix |
 |---|---|
 | OpenClaw sends `num_ctx` values that exceed safe KV cache limits → Ollama allocates too much RAM → inference hangs | Cap `options.num_ctx` at `PROXY_MAX_CTX` before forwarding |
 | qwen3 thinking mode generates 200+ tokens per tool call (~50s/call) | Inject `"think": false` on every POST request |
+| OpenClaw sends a multi-thousand-token system prompt on every request → Pi 5 prefill takes hundreds of seconds (exceeds timeout) | Truncate system message to `PROXY_MAX_SYSTEM_CHARS` (500 chars, ~125 tokens) |
+| Unbounded conversation history causes multi-minute prefill on long sessions | Cap non-system messages to `PROXY_MAX_MESSAGES` (default 10) |
 
 The enhanced variant additionally fixes:
 
 | Problem | Fix |
 |---|---|
-| OpenClaw sends a multi-thousand-token system prompt on every request → Pi 5 prefill takes hundreds of seconds (exceeds timeout) | Truncate system message to `PROXY_MAX_SYSTEM_CHARS` (500 chars, ~125 tokens) |
 | Malicious messages may contain prompt injection attacks | Two-layer detection: pattern matching (Gate 1) + LLM classifier (Gate 2) — see [Security Hardening doc](03-security-hardening.md) |
 
 ### Architecture
@@ -264,7 +265,7 @@ OpenClaw is configured to use Ollama via the proxy. The config at `~/.openclaw/o
         "models": [
           {
             "id": "qwen3:1.7b-q4_K_M",
-            "name": "Qwen3 4B (Q4_K_M, no-think)",
+            "name": "Qwen3 1.7B (Q4_K_M, no-think)",
             "reasoning": false,
             "input": ["text"],
             "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
